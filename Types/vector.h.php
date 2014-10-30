@@ -1,0 +1,81 @@
+<?
+//  Copyright 2014 Tera Insights, LLC. All Rights Reserved.
+
+// A fixed size matrix from Armadillo.
+
+function Fixed_Vector(array $t_args) {
+    $size = get_default($t_args, 'size', null);
+    $direction = get_default($t_args, 'direction', 'col');
+    $type = get_default($t_args, 'type', lookupType("base::double"));
+
+    grokit_assert(is_string($direction) && in_array($direction, ['row', 'col']),
+                  'Vector: [direction] argument must be "row" or "col".');
+    grokit_assert(is_datatype($type) && $type->is('numeric'),
+                  'Vector: [type] argument must be a numeric datatype.');
+    grokit_assert(is_int($size) && $size > 0,
+                  'Vector: [size] must be a positive integer.');
+
+    $inputs = get_default($t_args, 'inputs', array_fill(0, $size, $type));
+    grokit_assert(is_array($inputs),
+                  'Vector: [inputs] must be an array of datatypes.');
+
+    array_walk($inputs, function($value, $key) {
+        grokit_assert(   is_datatype($value)
+                      && ($value->is('numeric') || $value->is('categorical')),
+                      "MakeVector: input [$key] must be a numeric type.");
+    });
+
+    $className = generate_name('Vector_' . $size . '_');
+    $cppType = $type->is('real') ? 'vec' : 'ivec';
+
+    $sys_headers = ['armadillo'];
+    $user_headers = [];
+    $lib_headers = [];
+    $constructors = [];
+    $methods = [];
+    $functions = [];
+    $binaryOperators = [];
+    $unaryOperators = [];
+    $globalContent = '';
+    $complex = false;
+    $properties = [];
+    $extras = ['size' => $size, 'direction' => $direction, 'type' => $type,
+               'inputs' => $inputs];
+?>
+
+typedef arma::<?=$cppType?>::fixed<<?=$size?>> <?=$className?>;
+
+<?  ob_start(); ?>
+
+inline void ToJson(const @type src, Json::Value& dest) {
+  dest["__type__"] = "vector";
+  dest["n_elem"] = src.n_elem;
+  Json::Value content(Json::arrayValue);
+  for (int i = 0; i < src.n_elem; i++)
+    content[i] = src(i);
+  dest["data"] = content;
+}
+
+<?  $globalContent .= ob_get_clean(); ?>
+
+<?
+    return [
+        'kind'             => 'TYPE',
+        'name'             => $className,
+        'system_headers'   => $sys_headers,
+        'user_headers'     => $user_headers,
+        'lib_headers'      => $lib_headers,
+        'constructors'     => $constructors,
+        'methods'          => $methods,
+        'functions'        => $functions,
+        'binary_operators' => $binaryOperators,
+        'unary_operators'  => $unaryOperators,
+        'global_content'   => $globalContent,
+        'complex'          => $complex,
+        'properties'       => $properties,
+        'extras'           => $extras,
+    ];
+}
+
+declareType('statistics::Vector', 'statistics::Fixed_Vector', [])
+?>
