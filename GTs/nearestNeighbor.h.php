@@ -89,10 +89,10 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The length of each point.
-  static constexpr unsigned int kLength = <?=$state?>::kLength;
+  static const constexpr unsigned int kLength = <?=$state?>::kLength;
 
   // The number of neighbors.
-  static constexpr unsigned int kCardinality = <?=$state?>::kCardinality;
+  static const constexpr unsigned int kCardinality = <?=$state?>::kCardinality;
 
  private:
   // The constant state used to hold matrix..
