@@ -70,5 +70,6 @@ inline void ToJson(const @type src, Json::Value& dest) {
     ];
 }
 
-declareType('statistics::Matrix', 'statistics::Fixed_Matrix', []);
+declareType('Matrix', 'statistics::Fixed_Matrix', []);
+declareType('FixedMatrix', 'statistics::Fixed_Vector', []);
 ?>

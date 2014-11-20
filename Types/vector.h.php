@@ -38,7 +38,7 @@ function Fixed_Vector(array $t_args) {
     $unaryOperators = [];
     $globalContent = '';
     $complex = false;
-    $properties = [];
+    $properties = ['vector'];
     $extras = ['size' => $size, 'direction' => $direction, 'type' => $type,
                'inputs' => $inputs];
 ?>
@@ -77,5 +77,6 @@ inline void ToJson(const @type src, Json::Value& dest) {
     ];
 }
 
-declareType('statistics::Vector', 'statistics::Fixed_Vector', [])
+declareType('Vector', 'statistics::Fixed_Vector', []);
+declareType('FixedVector', 'statistics::Fixed_Vector', []);
 ?>
