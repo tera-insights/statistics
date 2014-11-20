@@ -22,16 +22,15 @@ using namespace arma;
 class <?=$className?>ConstantState {
  private:
   // The length of each point.
-  static constexpr unsigned int kLength = <?=$class?>::kLength;
+  static const constexpr unsigned int kLength = <?=$class?>::kLength;
 
   // The number of neighbors.
-  static constexpr unsigned int kCardinality = <?=$class?>::kCardinality;
+  static const constexpr unsigned int kCardinality = <?=$class?>::kCardinality;
 
  public:
   // The matrix containing the neighboring points by column.
   mat::fixed<kLength, kCardinality> neighbors;
 
- public:
   friend class <?=$className?>;
 
   <?=$className?>ConstantState(<?=const_typed_ref_args($states)?>) {

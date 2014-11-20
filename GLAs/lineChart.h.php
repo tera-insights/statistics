@@ -42,10 +42,10 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The number of points in the line chart.
-  static constexpr unsigned int kLength = <?=$length?>;
+  static const constexpr unsigned int kLength = <?=$length?>;
 
   // Epsilon used to track which indices have been filled.
-  static constexpr float kEpsilon = numeric_limits<float>::epsilon();
+  static const constexpr float kEpsilon = numeric_limits<float>::epsilon();
 
  private:
   // The chart being constructed, initially filled with -kEpsilon.

@@ -39,16 +39,16 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The side length of each blocking square.
-  static constexpr unsigned int kBlock = <?=$block?>;
+  static const constexpr unsigned int kBlock = <?=$block?>;
 
   // The length of each row in the data matrix.
-  static constexpr unsigned int kHeight = <?=$height?>;
+  static const constexpr unsigned int kHeight = <?=$height?>;
 
   // The length of each row in the data matrix.
-  static constexpr unsigned int kWidth = <?=$width?>;
+  static const constexpr unsigned int kWidth = <?=$width?>;
 
   // The proportion at which the dynamic matrix grows.
-  static constexpr unsigned int kScale = <?=$scale?>;
+  static const constexpr unsigned int kScale = <?=$scale?>;
 
   struct Iterator {
     int col, num_cols, col_shift, row, num_rows, row_shift;
