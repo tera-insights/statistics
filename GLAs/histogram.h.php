@@ -36,7 +36,7 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The number of bins in the histogram.
-  static constexpr unsigned int kLength = <?=$length?>;
+  static const constexpr unsigned int kLength = <?=$length?>;
 
  private:
   // A vector containing the bin counts.
