@@ -17,10 +17,12 @@ function Fixed_Matrix(array $t_args) {
     grokit_assert(is_int($nrow) && $nrow > 0,
                   'Matrix: [nrow] must be a positive integer.');
 
+    $nelem = $nrow * $ncol;
+
     $className = generate_name('Matrix_' . $nrow . '_' . $ncol . '_');
     $cppType = $type->is('real') ? 'mat' : 'imat';
 
-    $sys_headers = ['armadillo'];
+    $sys_headers = ['armadillo', 'algorithm'];
     $user_headers = [];
     $lib_headers = ['ArmaJson'];
     $constructors = [];
@@ -29,7 +31,7 @@ function Fixed_Matrix(array $t_args) {
     $binaryOperators = [];
     $unaryOperators = [];
     $globalContent = '';
-    $complex = false;
+    $complex = "ColumnIterator<@type, 0, sizeof({$type}) * {$nelem}>";
     $properties = [];
     $extra = ['nrow' => $nrow, 'ncol' => $ncol, 'type' => $type];
 ?>
@@ -47,6 +49,21 @@ inline void ToJson(const @type src, Json::Value& dest) {
     for (int j = 0; j < src.n_cols; j++)
 	    content[i * src.n_cols + j] = src(i, j);
   dest["data"] = content;
+}
+
+inline
+size_t Serialize(char* buffer, const @type & src) {
+    <?=$type?> * asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
+    <?=$type?> * colPtr = src.memptr();
+    std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
+    return @type::n_elem * sizeof(<?=$type?>);
+}
+
+inline
+size_t Deserialize(const char* buffer, @type & dest) {
+    const <?=$type?>* asInnerType = reinterpret_cast<const <?=$type?>*>(buffer);
+    dest = @type(asInnerType);
+    return @type::n_elem * sizeof(<?=$type?>);
 }
 
 <?  $globalContent .= ob_get_clean(); ?>
