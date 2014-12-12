@@ -33,8 +33,6 @@ function Collect(array $t_args, array $inputs, array $outputs)
       );
       array_set_index($outputs, 0, $output);
       $outputs_ = array_combine(['result'], $outputs);
-    } else {
-      $outputs_ = [];
     }
 
     $sys_headers = ['armadillo', 'limits'];
@@ -71,7 +69,7 @@ class <?=$className?> {
     <? if ($inputs_['vector']->get('direction') == 'row') { ?>
     data.col(index) += vector.t();
     <? } else { ?>
-    data.col(index) += vector.t();
+    data.col(index) += vector;
     <? } ?>
   }
 
