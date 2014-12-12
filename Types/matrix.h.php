@@ -54,7 +54,7 @@ inline void ToJson(const @type src, Json::Value& dest) {
 inline
 size_t Serialize(char* buffer, const @type & src) {
     <?=$type?> * asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
-    <?=$type?> * colPtr = src.memptr();
+    const <?=$type?> * colPtr = src.memptr();
     std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
     return @type::n_elem * sizeof(<?=$type?>);
 }
