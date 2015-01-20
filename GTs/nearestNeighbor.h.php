@@ -27,10 +27,10 @@ class <?=$className?>ConstantState {
   // The number of neighbors.
   static const constexpr unsigned int kCardinality = <?=$class?>::kCardinality;
 
- public:
   // The matrix containing the neighboring points by column.
   mat::fixed<kLength, kCardinality> neighbors;
 
+ public:
   friend class <?=$className?>;
 
   <?=$className?>ConstantState(<?=const_typed_ref_args($states)?>) {
@@ -94,7 +94,7 @@ class <?=$className?> {
   static const constexpr unsigned int kCardinality = <?=$state?>::kCardinality;
 
  private:
-  // The constant state used to hold matrix..
+  // The constant state used to hold matrix.
   const <?=$constantState?>& constant_state;
 
   // The vector to be placed on top of the input array.
@@ -104,9 +104,6 @@ class <?=$className?> {
   colvec::fixed<kLength> item;
 <?  } ?>
 
-  // The matrix used to copy the constant state neighbors.
-  mat::fixed<kLength, kCardinality> neighbors;
-
   // The vector containing the distances to each neighbor.
   rowvec::fixed<kCardinality> distances;
 
@@ -115,9 +112,7 @@ class <?=$className?> {
 
  public:
   <?=$className?>(const <?=$constantState?>& state)
-      : constant_state(state),
-        item(),
-        neighbors(constant_state.neighbors) {
+      : constant_state(state)  {
   }
 
   bool ProcessTuple(<?=process_tuple_args($inputs, $outputs)?>) {
