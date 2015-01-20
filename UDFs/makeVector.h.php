@@ -22,7 +22,7 @@
 function MakeVector(array $inputs, array $t_args) {
     $size = count($inputs);
     $direction = get_default($t_args, 'direction', 'col');
-    $type = get_default($t_args, 'type', null);
+    $type = get_default($t_args, 'type', lookupType('base::double'));
 
     grokit_assert($size > 0, 'MakeVector: 0 inputs received.');
 
@@ -32,37 +32,37 @@ function MakeVector(array $inputs, array $t_args) {
     foreach ($inputs as $counter => $input) {
         if (!($input->is('numeric') || $input->is('categorical')))
             $typeErrorMessage .= "Input [$counter] has type $input.";
-        if ($input->is('real'))
-            $maxRealSize = max($maxRealSize, $input->get('size.bytes'));
-        else
-            $maxIntegralSize = max($maxIntegralSize, $input->get('size.bytes'));
+        /* if ($input->is('real')) */
+        /*     $maxRealSize = max($maxRealSize, $input->get('size.bytes')); */
+        /* else */
+        /*     $maxIntegralSize = max($maxIntegralSize, $input->get('size.bytes')); */
     }
-    $maxSize = max($maxRealSize, $maxIntegralSize);
+    /* $maxSize = max($maxRealSize, $maxIntegralSize); */
 
     grokit_assert($typeErrorMessage == '',
                   "MakeVector: Non-numeric inputs:\n" . $typeErrorMessage);
 
-    grokit_assert(is_null($type) || $type->get('size.bytes') >= $maxSize,
-                  'The given vector type is insufficient to hold the inputs.');
+    /* grokit_assert(is_null($type) || $type->get('size.bytes') >= $maxSize, */
+    /*               'The given vector type is insufficient to hold the inputs.'); */
 
-    if (is_null($type)) {
-        // Null padding used to reduce case-work when choosing type.
-        $typeArray = [
-            null, lookupType('base::byte'),
-            null, lookupType('base::smallint'),
-            lookupType('base::float'), lookupType('base::int'),
-            lookupType('base::double'), lookupType('base::bigint'),
-        ];
-        grokit_assert($maxIntegralSize < 8 || $maxRealSize == 0,
-                       'MakeVector: extended double not currently supported.');
-        if ($maxRealSize == $maxSize && $maxIntegralSize < $maxSize)
-            $index = 2 * log($maxRealSize, 2);
-        else if ($maxRealSize > 0 && $maxIntegralSize == $maxSize)
-            $index = 2 * log($maxIntegralSize, 2) + 2;
-        else
-            $index = 2 * log($maxIntegralSize, 2) + 1;
-        $type = $typeArray[$index];
-    }
+    /* if (is_null($type)) { */
+    /*     // Null padding used to reduce case-work when choosing type. */
+    /*     $typeArray = [ */
+    /*         null, lookupType('base::byte'), */
+    /*         null, lookupType('base::smallint'), */
+    /*         lookupType('base::float'), lookupType('base::int'), */
+    /*         lookupType('base::double'), lookupType('base::bigint'), */
+    /*     ]; */
+    /*     grokit_assert($maxIntegralSize < 8 || $maxRealSize == 0, */
+    /*                    'MakeVector: extended double not currently supported.'); */
+    /*     if ($maxRealSize == $maxSize && $maxIntegralSize < $maxSize) */
+    /*         $index = 2 * log($maxRealSize, 2); */
+    /*     else if ($maxRealSize > 0 && $maxIntegralSize == $maxSize) */
+    /*         $index = 2 * log($maxIntegralSize, 2) + 2; */
+    /*     else */
+    /*         $index = 2 * log($maxIntegralSize, 2) + 1; */
+    /*     $type = $typeArray[$index]; */
+    /* } */
 
     foreach (range(0, $size - 1) as $counter)
       $arguments[] = 'arg' . $counter;
