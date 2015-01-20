@@ -51,24 +51,36 @@ inline void ToJson(const @type src, Json::Value& dest) {
   dest["data"] = content;
 }
 
-inline
-size_t Serialize(char* buffer, const @type & src) {
-    <?=$type?> * asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
-    const <?=$type?> * colPtr = src.memptr();
-    std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
-    return @type::n_elem * sizeof(<?=$type?>);
+inline size_t Serialize(char* buffer, const @type& src) {
+  <?=$type?>* asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
+  const <?=$type?> * colPtr = src.memptr();
+  std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
+  return @type::n_elem * sizeof(<?=$type?>);
 }
 
-inline
-size_t Deserialize(const char* buffer, @type & dest) {
-    const <?=$type?>* asInnerType = reinterpret_cast<const <?=$type?>*>(buffer);
-    dest = @type(asInnerType);
-    return @type::n_elem * sizeof(<?=$type?>);
+inline size_t Deserialize(const char* buffer, @type& dest) {
+  const <?=$type?>* asInnerType = reinterpret_cast<const <?=$type?>*>(buffer);
+  dest = @type(asInnerType);
+  return @type::n_elem * sizeof(<?=$type?>);
+}
+
+inline size_t SerializedSize(@type& dest) {
+  return @type::n_elem * sizeof(<?=$type?>);
 }
 
 <?  $globalContent .= ob_get_clean(); ?>
 
 <?
+    $innerDesc = function($var, $myType) use($type, $ncol, $nrow) {
+        $describer = $type->describer('json');
+?>
+        <?=$var?>["n_cols"] = Json::Int64(<?=$ncol?>);
+        <?=$var?>["n_rows"] = Json::Int64(<?=$nrow?>);
+<?
+        $innerVar = "{$var}[\"inner_type\"]";
+        $describer($innerVar, $type);
+    };
+
     return [
         'kind'             => 'TYPE',
         'name'             => $className,
@@ -84,6 +96,7 @@ size_t Deserialize(const char* buffer, @type & dest) {
         'complex'          => $complex,
         'properties'       => $properties,
         'extra'            => $extra,
+        'describe_json'    => DescribeJson('matrix', $innerDesc),
     ];
 }
 
