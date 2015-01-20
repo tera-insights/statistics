@@ -41,10 +41,10 @@ class <?=$className?> {
   // The side length of each blocking square.
   static const constexpr unsigned int kBlock = <?=$block?>;
 
-  // The length of each row in the data matrix.
+  // The length of each column in the data matrix.
   static const constexpr unsigned int kHeight = <?=$height?>;
 
-  // The length of each row in the data matrix.
+  // The initial width of the data matrix.
   static const constexpr unsigned int kWidth = <?=$width?>;
 
   // The proportion at which the dynamic matrix grows.
@@ -57,7 +57,7 @@ class <?=$className?> {
   };
 
  private:
-  // The data matrix being constructed item by item. The height of this matrix
+  // The data matrix being constructed item by item. The width of this matrix
   // is increased when necessary as per a dynamic array.
   mat data;
 
@@ -129,21 +129,13 @@ class <?=$className?> {
     mat col_items = data.cols(first_col, final_col - 1);
     mat row_items = data.cols(first_row, final_row - 1).t();
 
-    rowvec col_means = means.subvec(first_col, final_col - 1);
-    colvec row_means = means.subvec(first_row, final_row - 1).t();
-    rowvec col_stds = stddevs.subvec(first_col, final_col - 1);
-    colvec row_stds = stddevs.subvec(first_row, final_row - 1).t();
+    rowvec col_means =   means.subvec(first_col, final_col - 1);
+    colvec row_means =   means.subvec(first_row, final_row - 1).t();
+    rowvec col_stds  = stddevs.subvec(first_col, final_col - 1);
+    colvec row_stds  = stddevs.subvec(first_row, final_row - 1).t();
 
     mat block = (row_items * col_items / kHeight - row_means * col_means)
               / (row_stds * col_stds);
-
-    // if (fragment == 0) {
-    //   cout << col_items     << endl << col_means     << endl << col_stds     << endl
-    //        << row_items.t() << endl << row_means.t() << endl << row_stds.t() << endl
-    //        << mean(col_items) << endl << stddev(col_items, 1) << endl
-    //        << block << endl
-    //        << row_items * col_items;
-    // }
 
     // If the block lies on the main diagonal, not all of its elements are used.
     // Because the co-variance matrix is symmetric, only the upper triangular
