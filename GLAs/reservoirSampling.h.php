@@ -5,6 +5,9 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     // Class name randomly generated
     $className = generate_name("RsvSamp");
 
+    // Setting output types.
+    $outputs = array_combine(array_keys($outputs), $inputs);
+
     // The dimension of the data, i.e. how many elements are in each item.
     $dimension = count($inputs);
 
@@ -15,15 +18,15 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     // Array for generating inline C++ code;
     $codeArray = array_combine(array_keys($outputs), range(0, $dimension - 1));
 
-    $sys_headers = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept'];
+    $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept'];
     $user_headers = [];
-    $lib_headers = [];
-    $libraries = ['armadillo'];
-    $extra = [];
-    $result_type = 'multi'
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
+    $extra        = [];
+    $result_type  = 'multi'
 ?>
 
-typedef std::tuple<<?=implode(', ', $inputs)?>> TUPLE;
+using std::tuple<<?=typed($inputs)?>> = TUPLE;
 
 using namespace std;
 
@@ -185,7 +188,7 @@ class <?=$className?> {
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     if (count < kSampleSize) {
       // State: initialization of the reservoir.
-<?  foreach ($codeArray as $name => $counter) { ?>
+<?  foreach (array_keys($inputs) as $counter => $name) { ?>
       get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       sample[count] = item;
@@ -196,7 +199,7 @@ class <?=$className?> {
       P--;
     } else {
       // State : inserting item into the reservoir and recalculating P.
-<?  foreach ($codeArray as $name => $counter) { ?>
+<?  foreach (array_keys($inputs) as $counter => $name) { ?>
       get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       AddCurrentItem(item);
@@ -245,10 +248,10 @@ class <?=$className?> {
   bool GetNextResult(<?=typed_ref_args($outputs)?>) {
     if (return_counter >= min(kSampleSize, count))
       return false;
-<?  foreach ($codeArray as $name => $counter) { ?>
+<?  foreach (array_keys($outputs) as $counter => $name) { ?>
     <?=$name?> = get<<?=$counter?>>(sample[return_counter]);
 <?  } ?>
-    ++return_counter;
+    return_counter++;
     return true;
   }
 

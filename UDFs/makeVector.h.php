@@ -20,18 +20,25 @@
 // are used, an error is thrown.
 
 function MakeVector(array $inputs, array $t_args) {
-    $size = count($inputs);
+    $count = count($inputs);
     $direction = get_default($t_args, 'direction', 'col');
     $type = get_default($t_args, 'type', lookupType('base::double'));
 
-    grokit_assert($size > 0, 'MakeVector: 0 inputs received.');
+    grokit_assert($count > 0, 'MakeVector: 0 inputs received.');
 
     // Processing of input types.
+    $size = 0;
     $maxRealSize = $maxIntegralSize = 0;
     $typeErrorMessage = '';
     foreach ($inputs as $counter => $input) {
-        if (!($input->is('numeric') || $input->is('categorical')))
+        if (!(   $input->is('numeric')
+              || $input->is('categorical')
+              || $input->is('vector')))
             $typeErrorMessage .= "Input [$counter] has type $input.";
+        if ($input->is('vector'))
+            $size += $input->get('size');
+        else
+            $size++;
         /* if ($input->is('real')) */
         /*     $maxRealSize = max($maxRealSize, $input->get('size.bytes')); */
         /* else */
@@ -64,32 +71,41 @@ function MakeVector(array $inputs, array $t_args) {
     /*     $type = $typeArray[$index]; */
     /* } */
 
-    foreach (range(0, $size - 1) as $counter)
+    foreach (range(0, $count - 1) as $counter)
       $arguments[] = 'arg' . $counter;
 
-    $inputs = array_combine($arguments, array_values($inputs));
+    $inputs_ = array_combine($arguments, $inputs);
 
     grokit_assert(is_string($direction) && in_array($direction, ['row', 'col']),
                   'MakeVector: [direction] argument must be "row" or "col".');
     grokit_assert(is_datatype($type) && $type->is('numeric'),
                   'MakeVector: [type] argument must be a numeric datatype.');
 
-    $funName = generate_name('MakeVector');
-    $sys_headers = ['armadillo'];
-    $user_headers = [];
-    $lib_headers = [];
     $output = lookupType(
         'statistics::fixed_vector',
         ['direction' => $direction, 'size' => $size, 'type' => $type,
          'inputs' => array_values($inputs)]
     );
+
+    $funName = generate_name('MakeVector');
+    $sys_headers = ['armadillo'];
+    $user_headers = [];
+    $lib_headers = [];
 ?>
 
-<?=$output?> <?=$funName?>(<?=const_typed_ref_args($inputs)?>) {
+<?=$output?> <?=$funName?>(<?=const_typed_ref_args($inputs_)?>) {
   <?=$output?> result;
-<?  foreach ($arguments as $counter => $value) { ?>
-  result[<?=$counter?>] = <?=$value?>;
-<?  } ?>
+<?  $count = 0;
+    foreach ($inputs_ as $arg => $type) {
+        if ($type->is('categorical') || $type->is('numeric')) { ?>
+  result(<?=$count?>) = <?=$arg?>;
+<?          $count++;
+        } else {
+            $end = $count + $type->get('size') - 1; ?>
+  result.subvec(<?=$count?>, <?=$end?>) = <?=$arg?>;
+<?          $count = $end + 1;
+        }
+    } ?>
   return result;
 }
 

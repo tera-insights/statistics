@@ -35,12 +35,12 @@ function Collect(array $t_args, array $inputs, array $outputs)
       $outputs_ = array_combine(['result'], $outputs);
     }
 
-    $sys_headers = ['armadillo', 'limits'];
+    $sys_headers  = ['armadillo', 'limits'];
     $user_headers = [];
-    $lib_headers = [];
-    $libraries = ['armadillo'];
-    $properties = [];
-    $extra = ['nrow' => $height, 'ncol' => $length, 'type' => $type];
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
+    $properties   = [];
+    $extra        = ['nrow' => $height, 'ncol' => $length, 'type' => $type];
 ?>
 
 using namespace arma;

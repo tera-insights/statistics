@@ -11,14 +11,14 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
     $scale = get_default($t_args, 'scale', 2);
     $width = get_default($t_args, 'length', 100);
 
-    $file = get_default($t_args, 'file', false);
-    $maxDepth = get_default($t_args, 'max.depth', 25);
-    $sampleCount = get_default($t_args, 'min.sample', 100);
-    $nodeEpsilon = get_default($t_args, 'node.epsilon', 0.01);
+    $file          = get_default($t_args, 'file',           false);
+    $maxDepth      = get_default($t_args, 'max.depth',      25);
+    $sampleCount   = get_default($t_args, 'min.sample',     100);
+    $nodeEpsilon   = get_default($t_args, 'node.epsilon',   0.01);
     $maxCategories = get_default($t_args, 'max.categories', 15);
-    $numVars = get_default($t_args, 'num.vars', floor(sqrt(count($intputs))));
-    $numTrees = get_default($t_args, 'num.trees', 0);
-    $treeEpsilon = get_default($t_args, 'tree.epsilon', 0);
+    $numVars       = get_default($t_args, 'num.vars',       0);
+    $numTrees      = get_default($t_args, 'num.trees',      0);
+    $treeEpsilon   = get_default($t_args, 'tree.epsilon',   0);
 
     grokit_assert($numTrees + $treeEpsilon > 0,
                   'Random Forest: no stopping criterion given.');
@@ -26,7 +26,7 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
     if ($numTrees > 0)
         $stopping = 'CV_TERMCRIT_ITER';
         if ($treeEpsilon > 0)
-            $stopping .= '| CV_TERMCRIT_EPS';
+            $stopping .= ' | CV_TERMCRIT_EPS';
     else
         $stopping = 'CV_TERMCRIT_EPS';
 
@@ -39,17 +39,16 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
         $type = $type->is('numeric') ? 'CV_VAR_NUMERICAL' : 'CV_VAR_CATEGORICAL';
     }
 
-    $sys_headers = ['armadillo', 'limits'];
+    $sys_headers = ['armadillo', 'opencv/cv.h', 'opencv/ml.h'];
     $user_headers = [];
     $lib_headers = [];
-    $libraries = ['armadillo'];
+    $libraries = ['armadillo', 'opencv_core', 'opencv_ml'];
     $extra = ['type' => $inputs_['y']];
-    $result_type = 'multi'
+    $result_type = 'state'
 ?>
 
 using namespace arma;
 using namespace std;
-using namespace cv;
 using Mat = cv::Mat;
 
 class <?=$className?>;
@@ -69,16 +68,16 @@ class <?=$className?> {
  private:
   // The data matrix being constructed item by item. The width of this matrix
   // is increased when necessary as per a dynamic array.
-  mat features;
+  fmat features;
 
   // The vector of responses that correspond to each column in features.
-  vec response;
+  fvec response;
 
   // The number of rows processed by this state.
   unsigned int count;
 
   // The model to be trained.
-  cv::CvRTrees forest;
+  CvRTrees forest;
 
  public:
   <?=$className?>()
@@ -94,7 +93,7 @@ class <?=$className?> {
       features.resize(kHeight, kScale * features.n_cols);
       response.resize(kScale * response.n_elem);
     }
-    features.col(count) = vec(x);
+    features.col(count) = fvec(x);
     response(count) = y;
     count++;
   }
@@ -109,12 +108,18 @@ class <?=$className?> {
     count += other.count;
   }
 
-  void Finalize() {
+  void FinalizeState() {
     // The remaining whitespace is stripped.
     features.resize(kHeight, count);
-    Mat trainData = Mat(features.n_cols, features.n_rows, CV_64F, features.memptr());
-    Mat responses = Mat(response.n_cols, response.n_rows, CV_64F, response.memptr());
-    cvRTParams params = CvRTParams(
+    response.resize(count);
+    wall_clock timer;
+    timer.tic();
+    cout << "beginning training" << endl;
+    cout << "features: " << features.n_rows << " by " << features.n_cols << endl;
+    cout << "response: " << response.n_rows << " by " << response.n_cols << endl;
+    Mat trainData = Mat(features.n_cols, features.n_rows, CV_32F, features.memptr());
+    Mat responses = Mat(response.n_cols, response.n_rows, CV_32F, response.memptr());
+    CvRTParams params = CvRTParams(
         <?=$maxDepth?>, <?=$sampleCount?>, <?=$nodeEpsilon?>, false,
         <?=$maxCategories?>, 0, false, <?=$numVars?>, <?=$numTrees?>,
         <?=$treeEpsilon?>, <?=$stopping?>
@@ -123,7 +128,14 @@ class <?=$className?> {
 <?  foreach ($types as $counter => $type) { ?>
     types.at<uchar>(<?=$counter?>, 0) = <?=$type?>;
 <?  } ?>
-    forest.train(trainData, CV_ROW_SAMPLE, responses, 0, 0, types, 0, params);
+    forest.train(trainData, CV_ROW_SAMPLE, responses,
+                 Mat(), Mat(), types, Mat(), params);
+    cout << "finished training in " << timer.toc() << " seconds." << endl;
+    cout << "var_type: " << Mat(forest.get_tree(0)->get_data()->var_type) << endl;
+    cout << "var_idx: " << Mat(forest.get_tree(0)->get_data()->var_idx) << endl;
+    cout << "cat_map: " << Mat(forest.get_tree(0)->get_data()->cat_map) << endl;
+    cout << "cat_ofs: " << Mat(forest.get_tree(0)->get_data()->cat_ofs) << endl;
+    cout << "cat_count: " << Mat(forest.get_tree(0)->get_data()->cat_count) << endl;
 <?  if ($file) { ?>
     FileStorage file = FileStorage("<?=$file?>", FileStorage::WRITE);
     forest.write(*file, "rtree");
@@ -131,24 +143,26 @@ class <?=$className?> {
 <?  } ?>
   }
 
-  void GetResult(<?=typed_ref_args($outputs)?>) {
-    return false;
+ public:
+  const CvRTrees& GetForest() const {
+    return forest;
   }
 };
 
 <?
     return [
-        'kind'           => 'GLA',
-        'name'           => $className,
-        'system_headers' => $sys_headers,
-        'user_headers'   => $user_headers,
-        'lib_headers'    => $lib_headers,
-        'libraries'      => $libraries,
-        'extra'          => $extra,
-        'iterable'       => false,
-        'input'          => $inputs,
-        'output'         => $outputs,
-        'result_type'    => $result_type,
+        'kind'              => 'GLA',
+        'name'              => $className,
+        'system_headers'    => $sys_headers,
+        'user_headers'      => $user_headers,
+        'lib_headers'       => $lib_headers,
+        'libraries'         => $libraries,
+        'extra'             => $extra,
+        'iterable'          => false,
+        'input'             => $inputs,
+        'output'            => $outputs,
+        'finalize_as_state' => true,
+        'result_type'       => $result_type,
     ];
 }
 ?>

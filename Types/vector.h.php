@@ -6,7 +6,7 @@
 function Fixed_Vector(array $t_args) {
     $size = get_default($t_args, 'size', null);
     $direction = get_default($t_args, 'direction', 'col');
-    $type = get_default($t_args, 'type', lookupType("base::double"));
+    $type = lookupType(get_default($t_args, 'type', "base::double"));
 
     grokit_assert(is_string($direction) && in_array($direction, ['row', 'col']),
                   'Vector: [direction] argument must be "row" or "col".');
@@ -26,26 +26,43 @@ function Fixed_Vector(array $t_args) {
     });
 
     $className = generate_name('Vector_' . $size . '_');
-    $cppType = $type->is('real') ? 'vec' : 'ivec';
+    $cppType = ($direction == 'row') ? 'Row' : 'Col';
 
-    $sys_headers = ['armadillo'];
-    $user_headers = [];
-    $lib_headers = [];
-    $constructors = [];
-    $methods = [];
-    $functions = [];
+    $sys_headers     = ['armadillo'];
+    $user_headers    = [];
+    $lib_headers     = [];
+    $constructors    = [];
+    $methods         = [];
+    $functions       = [];
     $binaryOperators = [];
-    $unaryOperators = [];
-    $globalContent = '';
-    $complex = false;
-    $properties = ['vector'];
-    $extras = ['size' => $size, 'direction' => $direction, 'type' => $type,
-               'inputs' => $inputs];
+    $unaryOperators  = [];
+    $globalContent   = '';
+    $complex         = false;
+    $properties      = ['vector'];
+    $extras          = ['size' => $size, 'direction' => $direction,
+                        'type' => $type, 'inputs' => $inputs];
 ?>
 
-typedef arma::<?=$cppType?>::fixed<<?=$size?>> <?=$className?>;
+typedef arma::<?=$cppType?><<?=$type?>>::fixed<<?=$size?>> <?=$className?>;
 
 <?  ob_start(); ?>
+
+inline void FromString(@type& x, const char* buffer) {
+  char * current = NULL;
+  char * saveptr = NULL;
+  const char * delim = " ";
+  char * copy = strdup(buffer);
+
+  current = strtok_r(copy, delim, &saveptr);
+
+  for (auto& val : x) {
+    FATALIF(current == NULL, "Not enough elements in string representation of array");
+    ToString(val, current);
+    current = strtok_r(NULL, delim, &saveptr);
+  }
+
+  free((void *) copy);
+}
 
 inline void ToJson(const @type src, Json::Value& dest) {
   dest["__type__"] = "vector";

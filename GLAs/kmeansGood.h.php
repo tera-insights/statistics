@@ -1,6 +1,4 @@
-<?php
-require_once "grokit_base.php";
-
+<?
 function K_Means_Constant_State(array $t_args)
 {
     // Grabbing variables from $t_args
@@ -18,6 +16,7 @@ class <?=$className?>ConstantState {
  private:
   // The current iteration which is to be compared to $maxIteration.
   long iteration;
+
   // A vector of armadillo vecs that represent the center of each cluster.
   mat::fixed<<?=$numNumeric?>, <?=$numberClusters?>> centers;
 <?  if ($normalized) { ?>
@@ -35,13 +34,13 @@ class <?=$className?>ConstantState {
         centers(<?=$initialCentersCode?>) {
   }
 };
-<?php
-    return array(
+<?
+    return [
         'kind' => 'RESOURCE',
         'name' => $className . 'ConstantState',
         'system_headers' => array('armadillo'),
         'user_headers' => array(),
-    );
+    ];
 }
 
 function K_Means(array $t_args, array $inputs, array $outputs)

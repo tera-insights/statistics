@@ -51,6 +51,7 @@ inline void ToJson(const @type src, Json::Value& dest) {
   dest["data"] = content;
 }
 
+template<>
 inline size_t Serialize(char* buffer, const @type& src) {
   <?=$type?>* asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
   const <?=$type?> * colPtr = src.memptr();
@@ -58,13 +59,15 @@ inline size_t Serialize(char* buffer, const @type& src) {
   return @type::n_elem * sizeof(<?=$type?>);
 }
 
+template<>
 inline size_t Deserialize(const char* buffer, @type& dest) {
   const <?=$type?>* asInnerType = reinterpret_cast<const <?=$type?>*>(buffer);
   dest = @type(asInnerType);
   return @type::n_elem * sizeof(<?=$type?>);
 }
 
-inline size_t SerializedSize(@type& dest) {
+template<>
+inline size_t SerializedSize(const @type& dest) {
   return @type::n_elem * sizeof(<?=$type?>);
 }
 

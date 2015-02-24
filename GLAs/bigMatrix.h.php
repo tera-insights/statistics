@@ -1,4 +1,12 @@
 <?
+// This GLA is used compute pair-wise statistics between input vectors, such as
+// correlation and covariance. This is done via the following:
+// 1. Input vectors are collected into a matrix.
+// 2. The output matrix is partitioned into blocks.
+// 3. Each block is computed separately and outputs a list of paired stastics.
+// The blocking is performed by partition the n inputs into k intervals within
+// the matrix. Each block is then given two intervals, 0 <= k1 <= k2 < k, which
+// represesent the two components of each pair-wise statistics.
 function Big_Matrix(array $t_args, array $inputs, array $outputs)
 {
     // Class name randomly generated.
@@ -17,7 +25,7 @@ function Big_Matrix(array $t_args, array $inputs, array $outputs)
     array_set_index($outputs, 1, $inputs[$key]);
     array_set_index($outputs, 2, lookupType("base::double"));
 
-    // Initialization of local variables from template arguments
+    // Initialization of local variables from template arguments.
     $block = get_default($t_args, 'block', 40);
     $scale = get_default($t_args, 'scale', 2);
     $width = get_default($t_args, 'length', 100);
@@ -93,8 +101,8 @@ class <?=$className?> {
   void AddState(<?=$className?> &other) {
     data.resize(kHeight, count);
     keys.resize(count);
-    data = join_rows(data, other.data);
-    keys = join_rows(keys, other.keys);
+    data.insert_cols(count, other.data);
+    keys.insert_cols(count, other.keys);
     count += other.count;
   }
 
