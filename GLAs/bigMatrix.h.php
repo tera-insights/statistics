@@ -7,36 +7,30 @@
 // The blocking is performed by partition the n inputs into k intervals within
 // the matrix. Each block is then given two intervals, 0 <= k1 <= k2 < k, which
 // represesent the two components of each pair-wise statistics.
-function Big_Matrix(array $t_args, array $inputs, array $outputs)
+function Big_Matrix($t_args, $inputs, $outputs)
 {
     // Class name randomly generated.
     $className = generate_name("BigM");
 
     // Initializiation of argument names.
-    $key = array_keys($inputs)[0];  // Name of the input representing key.
-    $vec = array_keys($inputs)[1];  // Name of the input representing values.
-
-    $x   = array_keys($outputs)[0];
-    $y   = array_keys($outputs)[1];
-    $val = array_keys($outputs)[2];
-
-    // Setting output types.
-    array_set_index($outputs, 0, $inputs[$key]);
-    array_set_index($outputs, 1, $inputs[$key]);
-    array_set_index($outputs, 2, lookupType("base::double"));
+    $inputs_ = array_combine(['key', 'vec'], $inputs);
+    $outputs_ = ['x' => $inputs['key'],
+                 'y' => $inputs['key'],
+                 'val' = lookupType("base::double")];
+    $outputs = array_combine(array_keys($outputs), $outputs_);
 
     // Initialization of local variables from template arguments.
-    $block = get_default($t_args, 'block', 40);
-    $scale = get_default($t_args, 'scale', 2);
-    $width = get_default($t_args, 'length', 100);
-    $height = $inputs[$vec]->get('size');
+    $block  = get_default($t_args, 'block',  40);
+    $scale  = get_default($t_args, 'scale',  2);
+    $width  = get_default($t_args, 'length', 100);
+    $height = $inputs['vec']->get('size');
 
-    $sys_headers = ['armadillo', 'limits'];
+    $sys_headers  = ['armadillo', 'limits'];
     $user_headers = [];
-    $lib_headers = [];
-    $libraries = ['armadillo'];
-    $extra = [];
-    $result_type = 'fragment'
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
+    $extra        = [];
+    $result_type  = ['fragment'];
 ?>
 
 using namespace arma;
@@ -86,13 +80,13 @@ class <?=$className?> {
   }
 
   // Basic dynamic array allocation.
-  void AddItem(<?=const_typed_ref_args($inputs)?>) {
+  void AddItem(<?=const_typed_ref_args($inputs_)?>) {
     if (count == data.n_cols) {
       data.resize(kHeight, kScale * data.n_cols);
       keys.resize(kScale * keys.n_elem);
     }
-    data.col(count) = vec(<?=$vec?>.data(), kHeight);
-    keys(count) = <?=$key?>;
+    data.col(count) = vec(vec.data(), kHeight);
+    keys(count) = key;
     count++;
   }
 
@@ -153,12 +147,12 @@ class <?=$className?> {
                          0, (int) row_means.n_elem, first_row, diagonal, block};
   }
 
-  bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs)?>) {
+  bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {
     if (it->col == it->num_cols)
       return false;
-    <?=$x?> = <?=$outputs[$x]?>(keys(it->row + it->row_shift));
-    <?=$y?> = <?=$outputs[$y]?>(keys(it->col + it->col_shift));
-    <?=$val?> = it->block(it->row, it->col);
+    x = keys(it->row + it->row_shift);
+    y = keys(it->col + it->col_shift);
+    val = it->block(it->row, it->col);
     if ((it->diagonal && it->row == it->col) || it->row == it->num_rows - 1) {
       it->row = 0;
       it->col++;

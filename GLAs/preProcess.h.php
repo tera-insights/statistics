@@ -1,5 +1,5 @@
 <?
-function Gather(array $t_args, array $inputs, array $outputs) {
+function PreProcess(array $t_args, array $inputs, array $outputs) {
     // Class name randomly generated
     $className = generate_name("PreProcess");
 

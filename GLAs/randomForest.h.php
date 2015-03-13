@@ -39,12 +39,12 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
         $type = $type->is('numeric') ? 'CV_VAR_NUMERICAL' : 'CV_VAR_CATEGORICAL';
     }
 
-    $sys_headers = ['armadillo', 'opencv/cv.h', 'opencv/ml.h'];
+    $sys_headers  = ['armadillo', 'opencv/cv.h', 'opencv/ml.h'];
     $user_headers = [];
-    $lib_headers = [];
-    $libraries = ['armadillo', 'opencv_core', 'opencv_ml'];
-    $extra = ['type' => $inputs_['y']];
-    $result_type = 'state'
+    $lib_headers  = [];
+    $libraries    = ['armadillo', 'opencv_core', 'opencv_ml'];
+    $extra        = ['type' => $inputs_['y']];
+    $result_type  = ['state'];
 ?>
 
 using namespace arma;

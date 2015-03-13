@@ -3,9 +3,9 @@
 
 // Analagous to std::get for std::tuple.
 
-function MakeVector($inputs, $t_args) {
+function Get($inputs, $t_args) {
     grokit_assert(count($inputs) == 1, 'Get: input should be a single tuple.');
-    $type = array_get_index($inputs, 0)
+    $type = array_get_index($inputs, 0);
     grokit_assert($type->is('tuple'), 'Get: input should be a single tuple.');
 
     grokit_assert(count($t_args) == 1, 'Get: expected one template argument.');

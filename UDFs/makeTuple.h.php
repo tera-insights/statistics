@@ -3,8 +3,10 @@
 
 // Constructs a tuple containing the given types.
 
-function MakeVector($inputs, $t_args) {
-    grokit_assert(count($inputs) > 0, 'MakeVector: 0 inputs received.');
+function MakeTuple($inputs, $t_args) {
+    $count = count($inputs);
+
+    grokit_warning_assert($count, 'MakeVector: 0 inputs received.');
 
     foreach (range(0, $count - 1) as $counter)
       $arguments[] = 'arg' . $counter;
@@ -19,7 +21,7 @@ function MakeVector($inputs, $t_args) {
     $lib_headers  = [];
 ?>
 
-<?=$type?> <?=$funName?>(<?=const_typed_ref_args($inputs_)?>) {
+<?=$type?> <?=$name?>(<?=const_typed_ref_args($inputs_)?>) {
   return <?=$type?>(<?=args($inputs_)?>);
 }
 
@@ -31,7 +33,7 @@ function MakeVector($inputs, $t_args) {
         'user_headers'   => $user_headers,
         'lib_headers'    => $lib_headers,
         'input'          => $inputs,
-        'result'         => $output,
+        'result'         => $type,
         'deterministic'  => true,
     ];
 }
