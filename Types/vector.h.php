@@ -3,7 +3,7 @@
 
 // A fixed size matrix from Armadillo.
 
-function Fixed_Vector(array $t_args) {
+function Fixed_Vector($t_args) {
     $size = get_default($t_args, 'size', null);
     $direction = get_default($t_args, 'direction', 'col');
     $type = lookupType(get_default($t_args, 'type', "base::double"));
@@ -19,14 +19,20 @@ function Fixed_Vector(array $t_args) {
     grokit_assert(is_array($inputs),
                   'Vector: [inputs] must be an array of datatypes.');
 
-    array_walk($inputs, function($value, $key) {
-        grokit_assert(   is_datatype($value)
-                      && ($value->is('numeric') || $value->is('categorical')),
+    foreach ($inputs as $key => &$input) {
+        grokit_assert(   is_datatype($input)
+                      && ($input->is('numeric') || $input->is('categorical')),
                       "MakeVector: input [$key] must be a numeric type.");
-    });
+        $input = $input->lookup();
+    };
 
     $className = generate_name('Vector_' . $size . '_');
+
     $cppType = ($direction == 'row') ? 'Row' : 'Col';
+
+    $unique = ['Vector', $direction, $type, $size];
+    if (typeDefined($unique, $hash, $output))
+      return $output;
 
     $sys_headers     = ['armadillo'];
     $user_headers    = [];
@@ -96,6 +102,7 @@ inline size_t SerializedSize(@type& dest) {
     return [
         'kind'             => 'TYPE',
         'name'             => $className,
+        'hash'             => $hash,
         'system_headers'   => $sys_headers,
         'user_headers'     => $user_headers,
         'lib_headers'      => $lib_headers,
