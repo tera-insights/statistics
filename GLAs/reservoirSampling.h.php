@@ -23,10 +23,11 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     $lib_headers  = [];
     $libraries    = ['armadillo'];
     $extra        = [];
-    $result_type  = 'multi'
+    $properties   = ['tuples'];
+    $result_type  = ['multi'];
 ?>
 
-using std::tuple<<?=typed($inputs)?>> = TUPLE;
+using Tuple = std::tuple<<?=typed($inputs)?>>;
 
 using namespace std;
 
@@ -48,12 +49,12 @@ class <?=$className?> {
 
   // An STL vector containing the tuples of data that represent the sample. Due
   // to the small size of the sample, this can be directly stored in memory.
-  vector<TUPLE> sample;
+  vector<Tuple> sample;
 
   // The tuple that contains the current data whose elements are manually set.
   // This is a member variable as opposed to a local one to avoid allocating
   // memory repeatedly.
-  TUPLE item;
+  Tuple item;
 
   // The total number of items processed so far. It is a double to avoid integer
   // division in calculations.
@@ -115,7 +116,7 @@ class <?=$className?> {
   }
 
   // Simple function to insert a chosen tuple randomly into the resovoir.
-  void AddCurrentItem(TUPLE x) {
+  void AddCurrentItem(Tuple x) {
     long random_index = index_distribution(generator);
     sample[random_index] = x;
   }
@@ -256,11 +257,15 @@ class <?=$className?> {
   }
 
   // This function is intended to be called when passing this GLA as a state.
-  TUPLE GetSample(long counter) {
+  Tuple GetSample(long counter) {
     if (counter < kSampleSize)
       return sample[counter];
     else
       throw std::invalid_argument("Sample size exceeded number of rows.");
+  }
+
+  inline const vector<Tuple>& GetTuples() {
+    return sample;
   }
 
   int GetSize() {
