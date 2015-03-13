@@ -24,21 +24,19 @@ function MakeVector(array $inputs, array $t_args) {
     $direction = get_default($t_args, 'direction', 'col');
     $type = get_default($t_args, 'type', lookupType('base::double'));
 
-    grokit_assert($count > 0, 'MakeVector: 0 inputs received.');
+    grokit_warning_assert($count, 'MakeVector: 0 inputs received.');
 
     // Processing of input types.
     $size = 0;
     $maxRealSize = $maxIntegralSize = 0;
     $typeErrorMessage = '';
     foreach ($inputs as $counter => $input) {
-        if (!(   $input->is('numeric')
-              || $input->is('categorical')
-              || $input->is('vector')))
-            $typeErrorMessage .= "Input [$counter] has type $input.";
-        if ($input->is('vector'))
+        if ($input->is('vector') || $input->is('array'))
             $size += $input->get('size');
-        else
+        else if ($inputs->is('categorical') || $inputs->is('numeric'))
             $size++;
+        else
+            $typeErrorMessage .= "Input [$counter] has type $input.";
         /* if ($input->is('real')) */
         /*     $maxRealSize = max($maxRealSize, $input->get('size.bytes')); */
         /* else */
@@ -88,9 +86,9 @@ function MakeVector(array $inputs, array $t_args) {
     );
 
     $funName = generate_name('MakeVector');
-    $sys_headers = ['armadillo'];
+    $sys_headers  = ['armadillo'];
     $user_headers = [];
-    $lib_headers = [];
+    $lib_headers  = [];
 ?>
 
 <?=$output?> <?=$funName?>(<?=const_typed_ref_args($inputs_)?>) {
@@ -101,9 +99,14 @@ function MakeVector(array $inputs, array $t_args) {
   result(<?=$count?>) = <?=$arg?>;
 <?          $count++;
         } else {
-            $end = $count + $type->get('size') - 1; ?>
+            $end = $count + $type->get('size') - 1;
+            if ($type->is('array')) { ?>
+  result.subvec(<?=$count?>, <?=$end?>) =
+      <?=$output?>(<?=$arg?>.data(), <?=$type->get('size')?>);
+<?          } else { ?>
   result.subvec(<?=$count?>, <?=$end?>) = <?=$arg?>;
-<?          $count = $end + 1;
+<?          }
+            $count = $end + 1;
         }
     } ?>
   return result;
