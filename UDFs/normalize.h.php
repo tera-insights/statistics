@@ -2,52 +2,34 @@
 // Normalizes an input vector.
 function Normalize(array $inputs, array $t_args) {
     grokit_assert(count($inputs) == 1,
-                  "Normalize must be given a single argument.");
-    $name = "input";
-    $inputs = array_combine(["input"], array_values($inputs));
-    $input = $inputs[$name];
-    grokit_assert($input->is("array"), "Normalize must be given an array type.");
-    $size = $input->get("size");
-    $type = $input->get("type");
-    grokit_assert($type->is("numeric"), "Only numeric arrays can be normalized.");
+                  'Normalize: expected 1 argument.');
+    $inputs_ = array_combine(['vector'], array_values($inputs));
+    $result = $inputs_['vector'];
+    grokit_assert($result->is('vector'),
+                  'Normalize: argument 1 should be a vector.');
 
-    $funName = generate_name("Normalize");
-    $sys_headers = ['cmath'];
+    $name = generate_name('Normalize');
+    $sys_headers  = ['armadillo'];
     $user_headers = [];
-    $lib_headers = [];
-    $output = lookupType("base::fixedarray", ['size' => $size, 'type' => lookupType("base::double")]);
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
 
 ?>
 
-<?=$output?> <?=$funName?>(<?=const_typed_ref_args($inputs)?>) {
-  using namespace std;
-  using namespace arma;
-
-  double l2_norm = 0.0;
-  for (<?=$type?> element : <?=$name?>)
-    l2_norm += element * element;
-  l2_norm = sqrt(l2_norm);
-  <?=$output?> value;
-  for (int counter = 0; counter < <?=$size?>; counter++)
-    value[counter] = <?=$name?>[counter] / l2_norm;
-  return value;
-
-  // Col<<?=$type?>> copy(<?=$name?>.data(), <?=$size?>);
-  // <?=$output?> value;
-  // vec::fixed<<?=$size?>>  normalized = normalise(copy);
-  // value.from_memory(normalized.memptr());
-  // return value;
+<?=$result?> <?=$name?>(<?=const_typed_ref_args($inputs_)?>) {
+  return arma::normalise(vector);
 }
 
 <?
     return [
         'kind'           => 'FUNCTION',
-        'name'           => $funName,
+        'name'           => $name,
         'system_headers' => $sys_headers,
         'user_headers'   => $user_headers,
         'lib_headers'    => $lib_headers,
+        'libraries'      => $libraries,
         'input'          => $inputs,
-        'result'         => $output,
+        'result'         => $result,
         'deterministic'  => true,
     ];
 }
