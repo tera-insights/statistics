@@ -66,6 +66,8 @@ class GiDTree {
 
   GiDTree(CvDTree* copy);
 
+  ~GiDTree();
+
   double predict(const arma::vec& sample) const;
 
  private:
@@ -73,7 +75,7 @@ class GiDTree {
   RootPtr root;
 
   // Information regarding type specifications.
-  arma::ivec var_type, var_idx, cat_map, cat_ofs, cat_count;
+  arma::ivec var_idx, cat_map, cat_ofs, var_type, cat_count;
 
   int is_buf_16u;
 };
@@ -81,21 +83,27 @@ class GiDTree {
 GiDTree::GiDTree(CvDTree* copy)
     : root(new GiDTreeNode(copy->get_root())),
       is_buf_16u(copy->get_data()->is_buf_16u) {
-    // CvMat converted to Mat to deal with possible null pointers.
-    cv::Mat var_type_mat(copy->get_data()->var_type);
-    var_type = arma::ivec((int*) var_type_mat.data, var_type_mat.cols);
+  // CvMat converted to Mat to deal with possible null pointers.
+  cv::Mat var_idx_mat(  copy->get_data()->var_idx);
+  cv::Mat cat_map_mat(  copy->get_data()->cat_map);
+  cv::Mat cat_ofs_mat(  copy->get_data()->cat_ofs);
+  cv::Mat var_type_mat( copy->get_data()->var_type);
+  cv::Mat cat_count_mat(copy->get_data()->cat_count);
 
-    cv::Mat var_idx_mat(copy->get_data()->var_idx);
-    var_idx = arma::ivec((int*) var_idx_mat.data, var_idx_mat.cols);
+  // Casting to const pointers forces the inner data to be copied.
+  var_idx   = arma::ivec((const int*) var_idx_mat.data,   var_idx_mat.cols);
+  cat_map   = arma::ivec((const int*) cat_map_mat.data,   cat_map_mat.cols);
+  cat_ofs   = arma::ivec((const int*) cat_ofs_mat.data,   cat_ofs_mat.cols);
+  var_type  = arma::ivec((const int*) var_type_mat.data,  var_type_mat.cols);
+  cat_count = arma::ivec((const int*) cat_count_mat.data, cat_count_mat.cols);
+}
 
-    cv::Mat cat_map_mat(copy->get_data()->cat_map);
-    cat_map = arma::ivec((int*) cat_map_mat.data, cat_map_mat.cols);
-
-    cv::Mat cat_ofs_mat(copy->get_data()->cat_ofs);
-    cat_ofs = arma::ivec((int*) cat_ofs_mat.data, cat_ofs_mat.cols);
-
-    cv::Mat cat_count_mat(copy->get_data()->cat_count);
-    cat_count = arma::ivec((int*) cat_count_mat.data, cat_count_mat.cols);
+GiDTree::~GiDTree() {
+  var_idx.reset();
+  cat_map.reset();
+  cat_ofs.reset();
+  var_type.reset();
+  cat_count.reset();
 }
 
 double GiDTree::predict(const arma::vec& sample) const {
