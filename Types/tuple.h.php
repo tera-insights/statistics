@@ -7,8 +7,10 @@ function Tuple(array $t_args) {
     $types = $t_args['types'];
 
     grokit_assert(is_array($types), 'Tuple: [types] should be an array.');
-    foreach ($types as $type)
-        grokit_assert(is_datatype($value), "Tuple: [$type] is not a datatype.");
+    foreach ($types as &$type) {
+        grokit_assert(is_datatype($type), "Tuple: [$type] is not a datatype.");
+        $type = $type->lookup();
+    }
 
     $className = generate_name('Tuple');
 
@@ -26,7 +28,7 @@ function Tuple(array $t_args) {
     $extras          = ['types' => $types, 'size' => count($types)];
 ?>
 
-using std::tuple<<?=typed($types)?>> = <?=$className?>;
+using <?=$className?> = std::tuple<<?=typed($types)?>>;
 
 <?
     return [
