@@ -21,8 +21,9 @@
 
 function MakeVector(array $inputs, array $t_args) {
     $count = count($inputs);
+
     $direction = get_default($t_args, 'direction', 'col');
-    $type = get_default($t_args, 'type', lookupType('base::double'));
+    $type      = get_default($t_args, 'type', lookupType('base::double'));
 
     grokit_warning_assert($count, 'MakeVector: 0 inputs received.');
 
@@ -31,9 +32,9 @@ function MakeVector(array $inputs, array $t_args) {
     $maxRealSize = $maxIntegralSize = 0;
     $typeErrorMessage = '';
     foreach ($inputs as $counter => $input) {
-        if ($input->is('vector') || $input->is('array'))
+        if ($input->is('vector') || $input->is('array') || $input->is('matrix'))
             $size += $input->get('size');
-        else if ($inputs->is('categorical') || $inputs->is('numeric'))
+        else if ($input->is('categorical') || $input->is('numeric'))
             $size++;
         else
             $typeErrorMessage .= "Input [$counter] has type $input.";
@@ -89,22 +90,28 @@ function MakeVector(array $inputs, array $t_args) {
     $sys_headers  = ['armadillo'];
     $user_headers = [];
     $lib_headers  = [];
+    $libraries    = ['armadillo']
 ?>
+
+using namespace arma;
 
 <?=$output?> <?=$funName?>(<?=const_typed_ref_args($inputs_)?>) {
   <?=$output?> result;
 <?  $count = 0;
-    foreach ($inputs_ as $arg => $type) {
-        if ($type->is('categorical') || $type->is('numeric')) { ?>
+    foreach ($inputs_ as $arg => $input) {
+        if ($input->is('categorical') || $input->is('numeric')) { ?>
   result(<?=$count?>) = <?=$arg?>;
 <?          $count++;
         } else {
-            $end = $count + $type->get('size') - 1;
-            if ($type->is('array')) { ?>
+            $end = $count + $input->get('size') - 1;
+            if ($input->is('array')) { ?>
   result.subvec(<?=$count?>, <?=$end?>) =
-      <?=$output?>(<?=$arg?>.data(), <?=$type->get('size')?>);
+      conv_to<Col<<?=$type?>>>::from(Col<<?=$input->get('type')?>>(<?=$arg?>.data(), <?=$input->get('size')?>));
+<?          } else if ($input->is('vector')) { ?>
+  result.subvec(<?=$count?>, <?=$end?>) = conv_to<Col<<?=$type?>>>::from(<?=$arg?>);
 <?          } else { ?>
-  result.subvec(<?=$count?>, <?=$end?>) = <?=$arg?>;
+  result.subvec(<?=$count?>, <?=$end?>) =
+      conv_to<Col<<?=$type?>>>::from(Col<<?=$input->get('type')?>>(<?=$arg?>.memptr(), <?=$input->get('size')?>));
 <?          }
             $count = $end + 1;
         }
@@ -119,6 +126,7 @@ function MakeVector(array $inputs, array $t_args) {
         'system_headers' => $sys_headers,
         'user_headers'   => $user_headers,
         'lib_headers'    => $lib_headers,
+        'libraries'      => $libraries,
         'input'          => $inputs,
         'result'         => $output,
         'deterministic'  => true,
