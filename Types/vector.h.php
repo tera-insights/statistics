@@ -4,9 +4,12 @@
 // A fixed size matrix from Armadillo.
 
 function Fixed_Vector($t_args) {
-    $size = get_default($t_args, 'size', null);
+    $size      = get_default($t_args, 'size',      null);
     $direction = get_default($t_args, 'direction', 'col');
-    $type = lookupType(get_default($t_args, 'type', "base::double"));
+    $type      = get_default($t_args, 'type',      lookupType('base::double'));
+
+    // TODO: Automatically look-up type.
+    lookupType($type);
 
     grokit_assert(is_string($direction) && in_array($direction, ['row', 'col']),
                   'Vector: [direction] argument must be "row" or "col".');
@@ -21,7 +24,7 @@ function Fixed_Vector($t_args) {
 
     foreach ($inputs as $key => &$input) {
         grokit_assert(   is_datatype($input)
-                      && ($input->is('numeric') || $input->is('categorical')),
+                      && ($input->is('numeric') || $input->is('categorical') || $input->is('matrix')),
                       "MakeVector: input [$key] must be a numeric type.");
         $input = $input->lookup();
     };
@@ -34,19 +37,31 @@ function Fixed_Vector($t_args) {
     if (typeDefined($unique, $hash, $output))
       return $output;
 
+    $innerDesc = function($var, $myType) use($type, $size) {
+        $describer = $type->describer('json');
+?>
+        <?=$var?>["size"] = Json::Int64(<?=$size?>);
+<?
+        $innerVar = "{$var}[\"inner_type\"]";
+        $describer($innerVar, $type);
+    };
+
     $sys_headers     = ['armadillo'];
     $user_headers    = [];
     $lib_headers     = [];
+    $libraries       = ['armadillo'];
     $constructors    = [];
     $methods         = [];
     $functions       = [];
-    $binaryOperators = [];
+    $binaryOperators = ['+', '-'];
     $unaryOperators  = [];
     $globalContent   = '';
     $complex         = false;
     $properties      = ['vector'];
     $extras          = ['size' => $size, 'direction' => $direction,
-                        'type' => $type, 'inputs' => $inputs];
+                        'type' => $type, 'inputs' => $inputs,
+                        'init' => 'arma::fill::zeros',
+                        'dimensions' => ['size']];
 ?>
 
 typedef arma::<?=$cppType?><<?=$type?>>::fixed<<?=$size?>> <?=$className?>;
@@ -106,6 +121,7 @@ inline size_t SerializedSize(@type& dest) {
         'system_headers'   => $sys_headers,
         'user_headers'     => $user_headers,
         'lib_headers'      => $lib_headers,
+        'libraries'        => $libraries,
         'constructors'     => $constructors,
         'methods'          => $methods,
         'functions'        => $functions,
@@ -115,6 +131,7 @@ inline size_t SerializedSize(@type& dest) {
         'complex'          => $complex,
         'properties'       => $properties,
         'extras'           => $extras,
+        'describe_json'    => DescribeJson('vector', $innerDesc),
     ];
 }
 
