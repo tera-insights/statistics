@@ -43,10 +43,10 @@ class <?=$className?> {
   static const constexpr unsigned int kHeight = <?=$height?>;
 
   // The initial width of the data matrix.
-  static const constexpr unsigned int kWidth = <?=$width?>;
+  static const constexpr int kWidth = <?=$width?>;
 
   // The proportion at which the dynamic matrix grows.
-  static const constexpr unsigned int kScale = <?=$scale?>;
+  static const constexpr double kScale = <?=$scale?>;
 
  private:
   // The data matrix being constructed item by item. The width of this matrix
@@ -58,7 +58,7 @@ class <?=$className?> {
   vector<Tuple> extra;
 
   // The number of inputs processed by this state.
-  unsigned int count;
+  long count;
 
  public:
   <?=$className?>()
@@ -97,7 +97,7 @@ class <?=$className?> {
     return extra;
   }
 
-  int GetCount() const {
+  long GetCount() const {
     return count;
   }
 };
