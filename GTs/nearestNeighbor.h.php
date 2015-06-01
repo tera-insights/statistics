@@ -70,10 +70,10 @@ function Nearest_Neighbor(array $t_args, array $inputs, array $outputs, array $s
     $class  = array_keys($outputs)[0];  // Name of the predicted type outputted.
 
     // Return values.
-    $sys_headers = ['armadillo'];
+    $sys_headers  = ['armadillo'];
     $user_headers = [];
-    $lib_headers = [];
-    $libraries = ['armadillo'];
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
 ?>
 
 using namespace arma;
@@ -88,10 +88,10 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The length of each point.
-  static const constexpr unsigned int kLength = <?=$state?>::kLength;
+  static const constexpr int kLength = <?=$state?>::kLength;
 
   // The number of neighbors.
-  static const constexpr unsigned int kCardinality = <?=$state?>::kCardinality;
+  static const constexpr int kCardinality = <?=$state?>::kCardinality;
 
  private:
   // The constant state used to hold matrix.
