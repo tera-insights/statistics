@@ -1,18 +1,24 @@
 // http://www.stat.cmu.edu/~ryantibs/papers/median.pdf
 <?php
-require_once "grokit_base.php";
-
 function Median_Binning_Constant_State(array $t_args)
 {
     // Grabbing variables from $t_args
     $className = $t_args['className'];
     $dimension = $t_args['dimension'];
     $numBins = $t_args['numBins'];
+
+    $sys_headers  = ['armadillo'];
+    $user_headers = [];
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
 ?>
 using namespace arma;
 using namespace std;
 
 class <?=$className?>ConstantState{
+ public:
+  static const constexpr int kDimension = <?=$dimension?>;
+
  private:
   // The current iteration.
   // TODO: Perhaps implement a max iteration which halts and produces bins for
@@ -23,24 +29,16 @@ class <?=$className?>ConstantState{
   // iteration.
   bool final_iteration;
 
-  // What exact state each attribute is in after pre-computation.
-  // 1 : recursive binning is still needed to narrow down the range
-  // 2 : the median follows exactly between two bins.
-  // 3 : the number of items in the binning range is below the sort threshold
-  // 4 : the median has been found for this attribute
-  // The algorithm concludes once all attributes are in state 4.
-  uvec::fixed<<?=$dimension?>> state;
-
   // Vectors used during state 2. They are the lower bound of the upper bin
   // and the upper bound of the lower bin. They are used to compute the least
   // and greatest elements in the respective bins.
-  vec::fixed<<?=$dimension?>> min_2;
-  vec::fixed<<?=$dimension?>> max_2;
+  vec::fixed<kDimension> min_2;
+  vec::fixed<kDimension> max_2;
 
   // Vectors used to compute the binning intervals
-  vec::fixed<<?=$dimension?>> min;
-  vec::fixed<<?=$dimension?>> max;
-  vec::fixed<<?=$dimension?>> range;
+  vec::fixed<kDimension> min;
+  vec::fixed<kDimension> max;
+  vec::fixed<kDimension> range;
 
   // The total number of entries in the data. It is needed to know the exact
   // index needed for the median.
@@ -49,10 +47,18 @@ class <?=$className?>ConstantState{
   // This is the number of elements to the left of the current binning section
   // for each dimension. This is N_L in the Tibshirani paper. This is needed to
   // compute which element in the sorted array is the median.
-  uvec::fixed<<?=$dimension?>> left_counts;
+  uvec::fixed<kDimension> left_counts;
+
+  // What exact state each attribute is in after pre-computation.
+  // 1 : recursive binning is still needed to narrow down the range
+  // 2 : the median follows exactly between two bins.
+  // 3 : the number of items in the binning range is below the sort threshold
+  // 4 : the median has been found for this attribute
+  // The algorithm concludes once all attributes are in state 4.
+  uvec::fixed<kDimension> state;
 
   // Used to store the value of the medians once they are found
-  vec::fixed<<?=$dimension?>> medians;
+  vec::fixed<kDimension> medians;
 
  public:
   friend class <?=$className?>;
@@ -65,18 +71,18 @@ class <?=$className?>ConstantState{
         iteration(0),
         left_counts(),
         final_iteration(false),
-        state(zeros<uvec>(<?=$dimension?>)) {
-    cout.setf(std::ios_base::fixed | std::ios_base::scientific | std::ios_base::boolalpha);
-    cout.precision(15);
+        state(fill::zeros) {
   }
 };
 <?php
-    return array(
+    return [
         'kind'           => 'RESOURCE',
         'name'           => $className . 'ConstantState',
-        'system_headers' => array('armadillo'),
-        'user_headers'   => array(),
-    );
+        'system_headers' => $sys_headers,
+        'user_headers'   => $user_headers,
+        'lib_headers'    => $lib_headers,
+        'libraries'      => $libraries,
+    ];
 }
 
 function Median_Binning(array $t_args, array $inputs, array $outputs)
@@ -85,9 +91,9 @@ function Median_Binning(array $t_args, array $inputs, array $outputs)
     $className = generate_name("KMC");
 
     // Initialization of local variables from template arguments
-
     $numBins = $t_args['number.bins'];
     $sortThreshold = $t_args['sort.threshold'];
+    $epsilon = get_default($t_args, 'epsilon', 0.0001);
 
     // The dimension of the data, i.e. how many elements are in each item.
     $dimension = count($inputs);
@@ -103,7 +109,10 @@ function Median_Binning(array $t_args, array $inputs, array $outputs)
     // Setting output type
     array_set_index($outputs, 0, lookupType("base::JSON"));
 
-    $epsilon = 0.0001;
+    $sys_headers  = ['armadillo', 'limits'];
+    $user_headers = [];
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
 ?>
 
 using namespace arma;
@@ -111,40 +120,36 @@ using namespace std;
 
 class <?=$className?>;
 
-<?  $constantState = lookupResource(
-        "statistics::Median_Binning_Constant_State",
-        array(
-            'className'  => $className,
-            'dimension'  => $dimension,
-            'numBins' => $numBins,
-        )
+<?  $constantState = lookupResource("statistics::Median_Binning_Constant_State",
+                                    ['className' => $className,
+                                     'dimension' => $dimension,
+                                     'numBins'   => $numBins]
     ); ?>
 
 class <?=$className?> {
+ public:
+  static const constexpr int kDimension = <?=$dimension?>;
+
  private:
   // The typical constant state for an iterable GLA.
-  const <?=$constantState?> & constant_state;
-
-  // Records the ID of the state. Only used for debugging.
-  static std::atomic<int> next_id;
-  int id;
+  const <?=$constantState?>& constant_state;
 
   // A vector whose elements will be individually set to contain the current
   // item's data. The data is packaged as a vector due to the reliance on
   // armadillo. This exists as a member variable as opposed to a local variable
   // in order to avoid repeated memory allocation.
-  vec::fixed<<?=$dimension?>> item;
+  vec::fixed<kDimension> item;
 
   // These are used for the first iteration to compute the starting statistics.
 
   // This is the sum of the items, used to compute the means.
-  vec::fixed<<?=$dimension?>> sum;
+  vec::fixed<kDimension> sum;
 
   // This is the sum of the items squared, used to compute the variances.
-  vec::fixed<<?=$dimension?>> sum_squared;
+  vec::fixed<kDimension> sum_squared;
 
   // This contains 3 column - max, min, range - with an entry for each input.
-  mat::fixed<<?=$dimension?>, 3> extremities;
+  mat::fixed<kDimension, 3> extremities;
 
   // The number of elements processed, used to compute the means.
   unsigned long count;
@@ -152,74 +157,68 @@ class <?=$className?> {
   // These are used during the binning process.
 
   // This is used to store the counts after the first iteration.
-  umat::fixed<<?= $numBins + 2 ?>, <?=$dimension?>> counts;
+  umat::fixed<<?= $numBins + 2 ?>, kDimension> counts;
 
   // This stores the indices of counts to increment, using counts.elem(indices).
-  uvec::fixed<<?=$dimension?>> indices;
+  uvec::fixed<kDimension> indices;
 
   // This is hard coded by co-generation at compile time. It shifts the vector
   // of indices in order to account for each index being from a different row.
-  vec::fixed<<?=$dimension?>> index_shift;
+  vec::fixed<kDimension> index_shift;
 
   // This is set equal to the first item in the data set. It is used to check
   // whether every data row is exactly the same. If this is the case, then the
   // medians must be those unique values. This is needed in case of some values
   // appearing more times than the sort threshold, in which case the binning
   // algorithm cannot converge to under the sort threshold.
-  vec::fixed<<?=$dimension?>> unique_item;
+  vec::fixed<kDimension> unique_item;
 
   // This records whether the attributes of the data set each have a single
   // unique value. Due to machine precision issues, exact equality is not
   // checked; instead, the difference must be less than a given epsilon.
-  uvec::fixed<<?=$dimension?>> is_unique;
+  uvec::fixed<kDimension> is_unique;
 
   // This records whether, for each attribute, there has been a value found
   // within the binning range. Upon such a value being found, it is used to
   // check against for uniqueness while computing the above.
-  uvec::fixed<<?=$dimension?>> needs_unique;
+  uvec::fixed<kDimension> needs_unique;
 
   // Whether, for each attribute, the current item is within the binning range.
-  uvec::fixed<<?=$dimension?>> in_range;
+  uvec::fixed<kDimension> in_range;
 
   // These are used for state 2. They store the maximal element in the lower
   // bin and the minimal element in the upper bin, respectively.
-  vec::fixed<<?=$dimension?>> lower_max;
-  vec::fixed<<?=$dimension?>> upper_min;
+  vec::fixed<kDimension> lower_max;
+  vec::fixed<kDimension> upper_min;
 
   // These are used for the state 3.
 
   // The number of elements in each bin for the final iteration.
-  uvec::fixed<<?=$dimension?>> bin_counts;
+  uvec::fixed<kDimension> bin_counts;
 
   // A matrix to store the relevant data entries in memory for sorting. Not all
   // rows are filled completely. It is only used during the final iteration.
-  mat::fixed<<?=$dimension?>, <?=$sortThreshold?>> data;
+  mat::fixed<kDimension, <?=$sortThreshold?>> data;
 
  public:
   <?=$className?>(const <?=$constantState?> &state)
-      : id(next_id.fetch_add(1)),  // Used for debugging. Can be ignored
-        constant_state(state),
+      : constant_state(state),
         item(),
         count(0),
         extremities(),
-        sum(zeros<vec>(<?=$dimension?>)),
-        sum_squared(zeros<vec>(<?=$dimension?>)),
-        counts(zeros<umat>(<?=($numBins + 2)?>, <?=$dimension?>)),
+        sum(zeros<vec>(kDimension)),
+        sum_squared(zeros<vec>(kDimension)),
+        counts(zeros<umat>(<?=($numBins + 2)?>, kDimension)),
         indices(),
         index_shift({<?=$indicesShift?>}),
-        bin_counts(zeros<uvec>(<?=$dimension?>)),
-        is_unique(ones<uvec>(<?=$dimension?>)),
-        needs_unique(ones<uvec>(<?=$dimension?>)),
+        bin_counts(zeros<uvec>(kDimension)),
+        is_unique(ones<uvec>(kDimension)),
+        needs_unique(ones<uvec>(kDimension)),
         data()  {
     extremities.col(0).fill(-numeric_limits<double>::infinity());
     extremities.col(1).fill( numeric_limits<double>::infinity());
     lower_max.fill(-numeric_limits<double>::infinity());
     upper_min.fill( numeric_limits<double>::infinity());
-    if (id == 0) {
-      cout << "iteration: " << constant_state.iteration << endl;
-      cout << "max" << endl << constant_state.max << endl;
-      cout << "min" << endl << constant_state.min << endl;
-    }
   }
 
   // During the first stage, the necessary summary statistics are computed.
@@ -248,7 +247,6 @@ class <?=$className?> {
   // During state 3, the range of the bins has been narrowed enough so that few
   // enough elements remain in the range. These elements are stored in memory
   // and then sorted in the should iterative step. The median is then grabbed.
-  void Test(decltype(count) arg) {}
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     <?=inputs_to_vector($inputs)?>
     if (constant_state.iteration == 0) {
@@ -281,9 +279,6 @@ class <?=$className?> {
               && !needs_unique(<?=$counter?>)
               && abs(unique_item(<?=$counter?>) - item(<?=$counter?>)) > <?=$epsilon?>) {
             is_unique(<?=$counter?>) = 0;
-            if (id == 0) {
-                cout << "uniqueness failed" << endl << item << endl;
-            }
           }
         }
 
@@ -360,7 +355,7 @@ class <?=$className?> {
       if (any(constant_state.state == 0))
         counts += other.counts;
       vec difference = abs(unique_item - other.unique_item);
-      for (int counter = 0; counter < <?=$dimension?>; counter ++) {
+      for (int counter = 0; counter < kDimension; counter ++) {
         if (constant_state.state(counter) == 0) {
           is_unique(counter) = is_unique(counter)
               && other.is_unique(counter)
@@ -391,13 +386,12 @@ class <?=$className?> {
 
   // In the third state, the in-memory data is sorted and the median is
   // grabbed based on how many elements fell to the left of the in-memory data.
-  bool ShouldIterate(<?=$constantState?> & modible_state) {
-    next_id.store(0);  // Used for debugging purposes. Can be ignored.
+  bool ShouldIterate(<?=$constantState?>& modible_state) {
     if (constant_state.iteration == 0) {
-      vec::fixed<<?=$dimension?>> mean(sum / count);
-      vec::fixed<<?=$dimension?>> var(sum_squared / count - mean % mean);
+      vec::fixed<kDimension> mean(sum / count);
+      vec::fixed<kDimension> var(sum_squared / count - mean % mean);
       var *= 1.0 + 1.0 / (count - 1);
-      vec::fixed<<?=$dimension?>> std_dev(sqrt(var));
+      vec::fixed<kDimension> std_dev(sqrt(var));
       modible_state.min = max(join_rows(mean - std_dev, extremities.col(1)), 1);
       modible_state.max = min(join_rows(mean + std_dev, extremities.col(0)), 1);
       modible_state.range = modible_state.max - modible_state.min;
@@ -406,13 +400,10 @@ class <?=$className?> {
       return true;
 
     } else {
-      cout << "counts" << endl << counts << endl;
-      cout << "unique" << endl << is_unique << endl;
-      cout << "unique item" << endl << unique_item << endl;
       // This is used to check against the sort threshold.
-      uvec::fixed<<?=$dimension?>> median_counts;
+      uvec::fixed<kDimension> median_counts;
 
-      for (int counter = 0; counter < <?=$dimension?>; counter++) {
+      for (int counter = 0; counter < kDimension; counter++) {
         if (modible_state.state(counter) == 0) {
           if (is_unique(counter)) {
             modible_state.state(counter) = 4;
@@ -483,7 +474,7 @@ class <?=$className?> {
 
   // The use of "count == 0" is a bit convoluted.
 
-  //In the first stage, it is non zero as it kept track of the count of data.
+  // In the first stage, it is non zero as it kept track of the count of data.
 
   // In the second stage, it is incremented once to keep track of whether
   // unique_item was assigned. If all attributes are unique or all attributes
@@ -492,7 +483,6 @@ class <?=$className?> {
   // another iteration of binning is needed the first branch is used. Also, if
   // stage 2 is concluding (meaning final_iteration is true and ShouldIterate
   // returned false), then again the first branch is used.
-
 
   // If the third stage was in effect, it was used in AddStage and hence is not
   // zero. Final iteration is true so the latter branch is used.
@@ -504,34 +494,32 @@ class <?=$className?> {
     Json::Value result(Json::objectValue);
     result["iteration"] = (Json::Value::Int64) constant_state.iteration;
     if (all(constant_state.state == 4)) {
-      for (int counter = 0; counter < <?=$dimension?>; counter ++) {
+      for (int counter = 0; counter < kDimension; counter ++) {
         result["medians"].append(constant_state.medians(counter));
       }
     } else {
-      for (int counter = 0; counter < <?=$dimension?>; counter ++) {
+      for (int counter = 0; counter < kDimension; counter ++) {
         result["max"].append(constant_state.max(counter));
         result["min"].append(constant_state.min(counter));
       }
     }
     <?=array_keys($outputs)[0]?> = result;
-    cout << result << endl;
   }
 };
 
-std::atomic<int> <?=$className?>::next_id(0);  // Used for debugging. Can be ignored.
-
 <?
-    return array(
-        'kind'             => 'GLA',
-        'name'             => $className,
-        'system_headers'   => array('armadillo', 'string', 'iostream',
-                                    'limits', 'atomic'),
-        'user_headers'     => array(),
-        'iterable'         => TRUE,
-        'input'            => $inputs,
-        'output'           => $outputs,
-        'result_type'      => 'single',
-        'generated_state'  => $constantState,
-    );
+    return [
+        'kind'            => 'GLA',
+        'name'            => $className,
+        'system_headers'  => $sys_headers,
+        'user_headers'    => $user_headers,
+        'lib_headers'     => $lib_headers,
+        'libraries'       => $libraries,
+        'iterable'        => TRUE,
+        'input'           => $inputs,
+        'output'          => $outputs,
+        'result_type'     => 'single',
+        'generated_state' => $constantState,
+    ];
 }
 ?>
