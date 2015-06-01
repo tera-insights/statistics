@@ -102,7 +102,6 @@ class <?=$className?> {
   // memory, which could be dangerious.
   bool ProcessTuple(<?=process_tuple_args($inputs_, $outputs_)?>) {
     sample = Mat(x.n_cols, x.n_rows, CV_32F, (void*) x.memptr());
-    // cout << sample << endl;
     y = constant_state.forest.predict(sample, Mat());
     return true;
   }
