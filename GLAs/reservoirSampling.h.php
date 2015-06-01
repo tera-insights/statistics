@@ -27,14 +27,15 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     $result_type  = ['multi'];
 ?>
 
-using Tuple = std::tuple<<?=typed($inputs)?>>;
 
 using namespace std;
 
 class <?=$className?>;
 
 class <?=$className?> {
- private:
+ public:
+  using Tuple = std::tuple<<?=typed($inputs)?>>;
+
   // The total amount of entries to be returned by the sampling.
   const double kSampleSize = <?=$sampleSize?>;
 
@@ -185,7 +186,7 @@ class <?=$className?> {
   // the structure of Vitter's algorithm is slightly changed. The only notable
   // difference is that skipping over data entries still requires the machine to
   // read them in; this does not result in the reduction of IO time described by
-  // Vitter, but this is not an issue as IO time is extremlely fast in Datapath.
+  // Vitter, but this is not an issue as IO time is extremlely fast in Grokit.
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     if (count < kSampleSize) {
       // State: initialization of the reservoir.
@@ -193,8 +194,8 @@ class <?=$className?> {
       get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       sample[count] = item;
-    if (count == kSampleSize - 1)
-      CalculateToSkipSimple();
+      if (count == kSampleSize - 1)
+        CalculateToSkipSimple();
     } else if (P > 0) {
       // State: skip.
       P--;
