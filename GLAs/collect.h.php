@@ -7,23 +7,21 @@ function Collect(array $t_args, array $inputs, array $outputs)
     // Initialization of local variables from input names.
     $inputs_ = array_combine(['index', 'vector'], $inputs);
 
-    grokit_assert($inputs_['index']->is('categorical'),
+    grokit_assert(   $inputs_['index']->is('categorical')
+                  || array_key_exists('size', $t_args),
                   "Collect: input [0] must be categorical.\n");
 
     grokit_assert($inputs_['vector']->is('vector'),
                   "Collect: input [1] must be a vector.\n");
 
     $height = $inputs_['vector']->get('size');
-    $length = $inputs_['index']->get('cardinality');
+    $length = $inputs_['index']->is('categorical')
+        ? $inputs_['index']->get('cardinality')
+        : $t_args['size'];
+
     $type = $inputs_['vector']->get('type');
-
-    // Creating the armadillo type
-    $arma = $type->is('real')
-        ? $type->get('size.bytes') == 4
-            ? 'fvec'
-            : 'vec'
-        : 'svec';
-
+    if ($type->is('categorical'))
+        $type = lookupType('int');
 
     if (count($outputs) > 0) {
       // Setting output type.
@@ -83,7 +81,7 @@ class <?=$className?> {
   }
 <?  } ?>
 
-  inline Mat<<?=$type?>>::fixed<kHeight, kLength> GetMatrix() const {
+  inline const Mat<<?=$type?>>::fixed<kHeight, kLength>& GetMatrix() const {
     return data;
   }
 };
