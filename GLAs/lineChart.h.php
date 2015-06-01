@@ -47,9 +47,12 @@ class <?=$className?> {
   // Epsilon used to track which indices have been filled.
   static const constexpr float kEpsilon = numeric_limits<float>::epsilon();
 
+  // The type of the data being processed.
+  using Type = <?=$inputs[$value]?>;
+
  private:
   // The chart being constructed, initially filled with -kEpsilon.
-  vec::fixed<kLength> chart;
+  Col<Type>::fixed<kLength> chart;
 
  public:
   <?=$className?>() {
@@ -72,7 +75,7 @@ class <?=$className?> {
     <?=$chart?>.from_memory(chart.memptr());
   }
 
-  inline vec::fixed<kLength> GetChart() const {
+  inline Col<Type>::fixed<kLength> GetChart() const {
     return chart;
   }
 };
