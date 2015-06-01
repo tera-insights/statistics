@@ -51,14 +51,7 @@ class <?=$className?> {
   }
 
   void GetResult(<?=typed_ref_args($outputs_)?>) {
-    int max = counts(0);
-    result = 0;
-    for (int i = 1; i < kLength; i++) {
-      if (counts(i) > max) {
-        max = counts(i);
-        results = i;
-      }
-    }
+    counts.max(result);
   }
 };
 
