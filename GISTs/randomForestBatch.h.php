@@ -2,7 +2,7 @@
 function Random_Forest_Batch($t_args, $outputs, $states)
 {
     // Class name randomly generated.
-    $className = generate_name("RFB");
+    $className = generate_name('RFB');
 
     $states_ = array_combine(['training', 'predicting'], $states);
     $output = array_values($states_['predicting']->input());
@@ -82,10 +82,10 @@ class <?=$className?> {
  public:
   struct Iterator {
     // The fragment ID for this tree, corresponding to the tree index.
-    int fragment;
+    long fragment;
 
     // The index for the current output of this fragment.
-    int index;
+    long index;
   };
 
   struct Task {
@@ -151,7 +151,7 @@ class <?=$className?> {
   int iteration;
 
   // The number of items being processed;
-  int count;
+  long count;
 
   // The matrix containing the data used for training.
   const fmat& training;
@@ -271,7 +271,7 @@ class <?=$className?> {
     return 25 * (iteration - 1);
   }
 
-  Iterator* Finalize(int fragment) {
+  Iterator* Finalize(long fragment) {
     return new Iterator{fragment, fragment * count / 25};
   }
 
