@@ -7,6 +7,8 @@ function Fixed_Matrix(array $t_args) {
     $nrow = $t_args['nrow'];
     $ncol = $t_args['ncol'];
     $type = get_default($t_args, 'type', lookupType("base::double"));
+    // TODO: Automatically look-up type.
+    lookupType($type);
 
     grokit_assert(is_datatype($type),
                   'Matrix: [type] argument must be a valid datatype.');
@@ -22,21 +24,22 @@ function Fixed_Matrix(array $t_args) {
     $className = generate_name('Matrix_' . $nrow . '_' . $ncol . '_');
     $cppType = $type->is('real') ? 'mat' : 'imat';
 
-    $sys_headers = ['armadillo', 'algorithm'];
-    $user_headers = [];
-    $lib_headers = ['ArmaJson'];
-    $constructors = [];
-    $methods = [];
-    $functions = [];
+    $sys_headers     = ['armadillo', 'algorithm'];
+    $user_headers    = [];
+    $lib_headers     = ['ArmaJson'];
+    $constructors    = [];
+    $methods         = [];
+    $functions       = [];
     $binaryOperators = [];
-    $unaryOperators = [];
-    $globalContent = '';
-    $complex = "ColumnIterator<@type, 0, sizeof({$type}) * {$nelem}>";
-    $properties = [];
-    $extra = ['nrow' => $nrow, 'ncol' => $ncol, 'type' => $type];
+    $unaryOperators  = [];
+    $globalContent   = '';
+    $complex         = "ColumnIterator<@type, 0, sizeof({$type}) * {$nelem}>";
+    $properties      = ['matrix'];
+    $extra           = ['size' => $nrow * $ncol, 'dimensions' => [$nrow, $ncol],
+                        'nrow' => $nrow, 'ncol' => $ncol, 'type' => $type];
 ?>
 
-typedef arma::<?=$cppType?>::fixed<<?=$nrow?>, <?=$ncol?>> <?=$className?>;
+typedef arma::Mat<<?=$type?>>::fixed<<?=$nrow?>, <?=$ncol?>> <?=$className?>;
 
 <?  ob_start(); ?>
 
