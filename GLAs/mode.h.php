@@ -1,7 +1,7 @@
 <?
 function Mode($t_args, $inputs, $outputs)
 {
-    // Class name randomly generated.
+    // Class name is randomly generated.
     $className = generate_name('Collect');
 
     // Initialization of local variables from input names.

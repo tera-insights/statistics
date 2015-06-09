@@ -77,7 +77,7 @@ class <?=$className?>ConstantState {
     );
 }
 function Logistic_Regression(array $t_args, array $inputs, array $outputs) {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("LogReg");
 
     // These are hard coded checks to ensure that the input consists of:

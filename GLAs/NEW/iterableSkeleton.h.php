@@ -30,7 +30,7 @@ class <?=$className?>ConstantState{
 
 function FunctionName(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("ABBR");
 
 ?>

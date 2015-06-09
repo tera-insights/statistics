@@ -4,7 +4,7 @@ require_once "grokit_base.php";
 
 function Sparse_Indicator_Vector(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("Sparse");
 
     // The maximum number of elements in the sparse vector, predetermined to

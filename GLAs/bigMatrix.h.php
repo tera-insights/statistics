@@ -14,11 +14,11 @@
 // Width: The input matrix is initially allocated to hold this many inputs.
 // Type:  The type used to perform calculations. The input data type by default.
 // Diag:  Should diagonal entries be returned. Usually, these entries hold no
-//        meaningful information, e.g. the correlation is always 1.
+//   meaningful information, e.g. the correlation is always 1.
 function Big_Matrix($t_args, $inputs, $outputs)
 {
-    // Class name randomly generated.
-    $className = generate_name("BigM");
+    // Class name is randomly generated.
+    $className = generate_name('BigM');
 
     // Initializiation of argument names.
     $inputs_ = array_combine(['key', 'vector'], $inputs);
@@ -85,14 +85,14 @@ class <?=$className?> {
     // The indices of the big matrix where the upper left of this fragment is.
     int col_shift, row_shift;
 
+    // The data associated with this fragment.
+    Mat<Type> block;
+
     // The number of columns and rows in this fragment.
     int n_cols, n_rows;
 
     // Whether the corresponding fragment is on the main diagonal.
     bool diagonal;
-
-    // The data associated with this fragment.
-    Mat<Type> block;
 
     // Used to iterate over this fragment during output.
     int col, row;
@@ -101,10 +101,10 @@ class <?=$className?> {
              bool diagonal, Mat<Type>&& block)
         : col_shift(col_shift),
           row_shift(row_shift),
-          n_cols(n_cols),
-          n_rows(n_rows),
-          diagonal(diagonal),
           block(block),
+          n_cols(block.n_cols),
+          n_rows(block.n_rows),
+          diagonal(diagonal),
 <?  if ($diag) { ?>
           col(0),
 <?  } else { ?>
@@ -178,7 +178,7 @@ class <?=$className?> {
     int block_row = fragment - block_col * (block_col + 1) / 2;
 
     // The span of this block with regard to the covariance matrix.
-    // Both intervas are closed on the left and open on the right.
+    // Both intervals are closed on the left and open on the right.
     int first_col = kBlock * block_col;
     int first_row = kBlock * block_row;
     int final_col = std::min(count, first_col + kBlock);
@@ -201,12 +201,7 @@ class <?=$className?> {
     // portion of the matrix is returned.
     bool diagonal = (block_col == block_row);
 
-    // The number of rows and columns in the block.
-    int n_cols = final_col - first_col;
-    int n_rows = final_row - first_row;
-
-    return new Iterator(first_col, first_row, n_cols, n_rows, diagonal,
-                        std::move(block));
+    return new Iterator(first_col, first_row, diagonal, std::move(block));
   }
 
   bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {

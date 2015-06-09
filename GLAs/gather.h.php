@@ -1,7 +1,7 @@
 <?
 function Gather(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated.
+    // Class name is randomly generated.
     $className = generate_name('Gather');
 
     // Initialization of local variables from template arguments.

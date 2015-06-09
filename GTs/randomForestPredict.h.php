@@ -53,7 +53,7 @@ class <?=$className?>ConstantState {
 //  Copyright 2014 Tera Insights, LLC. All Rights Reserved.
 function Random_Forest_Predict($t_args, $inputs, $outputs, $states)
 {
-    // Class name randomly generated.
+    // Class name is randomly generated.
     $className = generate_name("RFP");
 
     // Initialization of local variables from template arguments.

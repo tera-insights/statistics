@@ -45,7 +45,7 @@ class <?=$className?>ConstantState {
 
 function K_Means(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("KMC");
 
     // Setting output type

@@ -1,7 +1,7 @@
 <?
 function Collect(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated.
+    // Class name is randomly generated.
     $className = generate_name('Collect');
 
     // Initialization of local variables from input names.

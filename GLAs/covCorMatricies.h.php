@@ -4,7 +4,7 @@ function CovCor_Matrix(array $t_args, array $inputs, array $outputs)
     // Setting output type
     array_set_index($outputs, 0, lookupType("base::JSON"));
 
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("Cov");
 
     // The dimension of the data, i.e. how many elements are in each item.

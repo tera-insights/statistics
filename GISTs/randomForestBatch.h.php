@@ -1,7 +1,7 @@
 <?
 function Random_Forest_Batch($t_args, $outputs, $states)
 {
-    // Class name randomly generated.
+    // Class name is randomly generated.
     $className = generate_name('RFB');
 
     $states_ = array_combine(['training', 'predicting'], $states);
@@ -10,7 +10,7 @@ function Random_Forest_Batch($t_args, $outputs, $states)
 
     $tuple = array_get_index($states_['predicting']->input(), 1);
 
-    // Initialization of local variables from template arguments
+    // Initialization of local variables from template arguments.
     $file          = get_default($t_args, 'file',           false);
     $maxDepth      = get_default($t_args, 'max.depth',      25);
     $sampleCount   = get_default($t_args, 'min.sample',     100);
@@ -21,8 +21,6 @@ function Random_Forest_Batch($t_args, $outputs, $states)
     $numTrees = $t_args['num.trees'];
 
     // Setting output types.
-    $outputs_ = [];
-
     $types = array_values($output[1]->get('types'));
     $length = count($types);
     for ($i = 0; $i < $length; $i++)
@@ -69,7 +67,7 @@ class AnswerGLA {
       : answer(answer) {
   }
 
-  void AddState(AnswerGLA other) {};
+  void AddState(AnswerGLA other) {}
 
   bool ShouldIterate() {
     return answer;
@@ -293,8 +291,6 @@ class <?=$className?> {
     return true;
   }
 };
-
-typedef <?=$className?>::Iterator <?=$className?>_Iterator;
 
 <?
     return [

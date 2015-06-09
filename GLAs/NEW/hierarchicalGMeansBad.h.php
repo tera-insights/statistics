@@ -158,7 +158,7 @@ class <?=$className?>ConstantState{
 
 function G_Means(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("HGM");
 
     // The dimension of the data, i.e. how many elements are in each item.

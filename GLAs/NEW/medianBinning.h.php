@@ -80,7 +80,7 @@ function Median_Binning(array $t_args, array $inputs, array $outputs)
     // Setting output type
     array_set_index($outputs, 0, lookupType("base::JSON"));
 
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("KMC");
 
     // Initialization of local variables from template arguments

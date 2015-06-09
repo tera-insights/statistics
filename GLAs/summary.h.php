@@ -1,7 +1,7 @@
 <?
 function Summary(array $t_args, array $inputs, array $outputs)
 {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("Summ");
 
     // The dimension of the data, i.e. how many elements are in each item.

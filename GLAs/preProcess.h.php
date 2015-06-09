@@ -1,6 +1,6 @@
 <?
 function PreProcess(array $t_args, array $inputs, array $outputs) {
-    // Class name randomly generated
+    // Class name is randomly generated
     $className = generate_name("PreProcess");
 
     $normal = $t_args['normal'];
