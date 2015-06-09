@@ -1,78 +1,47 @@
 <?
-function Random_Forest_Batch($t_args, $outputs, $states)
+function Big_Matrix_Batch($t_args, $outputs, $states)
 {
-    // Class name randomly generated.
-    $className = generate_name('RFB');
+    // Class name is randomly generated.
+    $className = generate_name('BigMatrixBatch');
 
-    $states_ = array_combine(['training', 'predicting'], $states);
-    $output = array_values($states_['predicting']->input());
-    $input  = array_values($states_['training']->input());
+    $numStates = count($states);
+    grokit_assert(in_array($numStates, [1, 2]),
+                  "RFB: Illegal number of states: $numStates.");
 
-    $tuple = array_get_index($states_['predicting']->input(), 1);
+    $states_ = array_values($states);
+    $type = array_get_index($states_[0]->inputs(), 0)->get('type');
+    $type = array_get_index($states_[0]->inputs(), 0)->get('size');
+    $key =  array_get_index($states_[0]->inputs(), 1);
 
-    // Initialization of local variables from template arguments
-    $file          = get_default($t_args, 'file',           false);
-    $maxDepth      = get_default($t_args, 'max.depth',      25);
-    $sampleCount   = get_default($t_args, 'min.sample',     100);
-    $nodeEpsilon   = get_default($t_args, 'node.epsilon',   0.01);
-    $maxCategories = get_default($t_args, 'max.categories', 15);
-    $numVars       = get_default($t_args, 'num.vars',       0);
+    $single = count($states) == 1;
 
-    $numTrees = $t_args['num.trees'];
+    // Initialization of local variables from template arguments.
+    $block = get_default($t_args, 'block',  40);
+    $diag  = get_default($t_args, 'diag', true);
 
     // Setting output types.
-    $outputs_ = [];
-
-    $types = array_values($output[1]->get('types'));
-    $length = count($types);
-    for ($i = 0; $i < $length; $i++)
-        $outputs_["extra$i"] = $types[$i];
-
-    $types = array_values($output[0]->get('inputs'));
-    $height = count($types);
-    for ($i = 0; $i < $height; $i++)
-        $outputs_["input$i"] = $types[$i];
-
-    $outputs_['output'] = $output = array_get_index($input[1]->get('types'), 0);
+    $outputs_ = [$key, $key, $type];
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
-    $types = array_values(array_merge($input[0]->get('inputs'), [$output]));
-    foreach ($types as &$type) {
-        grokit_assert($type->is('categorical') || $type->is('numeric'),
-                      'Random Forest: unable to use type $type');
-        $type = $type->is('numeric') ? 'CV_VAR_NUMERICAL' : 'CV_VAR_CATEGORICAL';
-    }
-
-    $regression = $output->is('numeric');
-    if (!$regression)
-      $cardinality = $output->get('cardinality');
-
-    $sys_headers  = ['armadillo', 'vector', 'mutex'];
+    $sys_headers  = ['armadillo', 'vector'];
     $user_headers = [];
-    $lib_headers  = ['tree.h'];
-    $libraries    = ['armadillo', 'opencv_core', 'opencv_ml'];
+    $lib_headers  = [];
+    $libraries    = ['armadillo'];
     $extra        = [];
     $result_type  = ['fragment'];
 ?>
 
-using namespace cv;
 using namespace arma;
 using namespace std;
 
-class AnswerGLA {
- private:
-  // Number of iterations finished.
-  bool answer;
-
+class EndGLA {
  public:
-  AnswerGLA(bool answer)
-      : answer(answer) {
-  }
+  EndGLA() {}
 
-  void AddState(AnswerGLA other) {};
+  void AddState(AnswerGLA other) {}
 
   bool ShouldIterate() {
-    return answer;
+    return false;
   }
 };
 
@@ -81,50 +50,53 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   struct Iterator {
-    // The fragment ID for this tree, corresponding to the tree index.
-    long fragment;
+    // The indices of the big matrix where the upper left of this fragment is.
+    int col_shift, row_shift;
 
-    // The index for the current output of this fragment.
-    long index;
+    // The data associated with this fragment.
+    Mat<Type> block;
+
+    // The number of columns and rows in this fragment.
+    int n_cols, n_rows;
+
+    // Whether the corresponding fragment is on the main diagonal.
+    bool diagonal;
+
+    // Used to iterate over this fragment during output.
+    int col, row;
+
+    Iterator(int col_shift, int row_shift, int n_cols, int n_rows,
+             bool diagonal, Mat<Type>&& block)
+        : col_shift(col_shift),
+          row_shift(row_shift),
+          block(block),
+          n_cols(block.n_cols),
+          n_rows(block.n_rows),
+          diagonal(diagonal),
+<?  if ($diag) { ?>
+          col(0),
+<?  } else { ?>
+          col(diagonal),
+<?  } ?>
+          row(0) {
+    }
   };
 
-  struct Task {
-    // The index corresponding to that of the scheduler allocating this task.
-    int index;
-  };
+  struct Task {};
 
   struct LocalScheduler {
-    // The thread index of this scheduler.
-    int index;
-
-    // Whether this scheduler has scheduled its single task.
-    bool finished;
-
-    LocalScheduler(int index)
-        : index(index),
-          finished(false) {
-    }
+    LocalScheduler() {}
 
     bool GetNextTask(Task& task) {
-      bool ret = !finished;
-      printf("Getting task from scheduler %d: %d\n", index, ret);
-      task.index = index;
-      finished = true;
-      return ret;
+      return false;
     }
   };
-
-  // The type of each tree.
-  using Tree = GiDTree;
-
-  // The type of matrices being trained and predicted on.
-  using Mat = cv::Mat;
 
   // The type of the extra tuples.
   using Tuple = <?=$tuple?>;
 
   // The inner GLA being used.
-  using cGLA = AnswerGLA;
+  using cGLA = EndGLA;
 
   // The type of the workers.
   using WorkUnit = pair<LocalScheduler*, cGLA*>;
@@ -132,169 +104,171 @@ class <?=$className?> {
   // The type of the container for the workers.
   using WorkUnits = vector<WorkUnit>;
 
-  // The length of each column in the items matrix.
-  static const constexpr int kHeight = <?=$height?>;
+  // The type of result.
+  using Type = <?=$type?>;
 
-  // The length of each tuple in the extra vector.
-  static const constexpr int kLength = <?=$length?>;
+  // The type of the indices.
+  using Key = <?=$key?>;
 
-  // The number of trees in the forest.
-  static const constexpr int kNumTrees = <?=$numTrees?>;
+  // The side length of each blocking square.
+  static const constexpr int kBlock = <?=$block?>;
 
-<?  if (!$regression) { ?>
-  // The cardinality of the output.
-  static const constexpr int kCardinality = <?=$cardinality?>;
-<?  } ?>
+  // The length of each column in the data matrix.
+  static const constexpr int kHeight = <?=$size?>;
+
+  // Whether the diagonal entries are kept.
+  static const constexpr bool kDiag = <?=$diag?>;
 
  private:
-  // The current iteration of the GIST.
-  int iteration;
-
-  // The number of items being processed;
-  long count;
-
-  // The matrix containing the data used for training.
-  const fmat& training;
-
-  // The vector of responses corresponding to the training data.
-  fvec response;
-
-  // The matrix containing the data used for predicting.
-  const mat& predicting;
-
-  // The vector containing the extra attributes to pass through when predicting.
-  const vector<Tuple>& extra;
-
-  // The random forest used to do prediction, created by combining the forests
-  // created in each work unit.
-  array<CvDTree*, kNumTrees> forest;
-
-  // The forests trained locally. This is used to delete them at the end.
-  vector<CvRTrees*> forests;
-
   // The number of threads being used.
   int num_threads;
-
-<?  if ($regression) { ?>
-  // The sum of the predictions for each user.
-  vec total;
-<?  } else { ?>
-  // The distribution of votes per category for each user.
-  mat total;
-<?  } ?>
 
   // The mutex for fragments.
   mutex m_fragments;
 
- public:
-  <?=$className?>(<?=const_typed_ref_args($states_)?>)
-      : iteration(0),
-        count(predicting.GetCount()),
-        training(training.GetMatrix()),
-        response((float*) training.GetTuples().data(), training.GetCount()),
-        predicting(predicting.GetMatrix()),
-        extra(predicting.GetTuples()),
-        total(<?=$regression ? '' : 'kCardinality, '?>count),
-        m_fragments() {
-    cout << "constructed gist state" << endl;
-    cout << "count " << predicting.GetCount() << endl;
-    cout << "training " << this->training.n_rows << " x " << this->training.n_cols << endl;
-    cout << "response " << this->response.n_rows << " x " << this->response.n_cols << endl;
-    cout << "predicting " << this->predicting.n_rows << " x " << this->predicting.n_cols << endl;
-  }
+<?  foreach ($states_ as $i => $state) { ?>
+  const Mat<Type>& data_<?=$i?>;
 
-  ~<?=$className?>() {
-    for (auto forest : forests)
-      delete forest;
+  const Col<Key>& keys_<?=$i?>;
+
+  Vec<Type> mean_<?=$i?>;
+
+  Vec<Type> sdev_<?=$i?>
+<?  } ?>
+
+ public:
+  <?=$className?>(<?=const_typed_ref_args($states)?>)
+      : iteration(0),
+<?  foreach (array_keys($states) as $i => $name) { ?>
+        data_<?=$i?>(<?=$name?>.GetData()),
+        keys_<?=$i?>(<?=$name?>.GetKeys()),
+<?  } ?>
+        m_fragments() {
   }
 
   void PrepareRound(WorkUnits& workers, int num_threads) {
-    this->num_threads = num_threads;
-    int num_workers = iteration ? kNumTrees : num_threads;
-    // if (iteration == 0)
-    //   num_workers = this->num_threads = 2;
-    cout << "Beginning round " << iteration << " with " << num_workers << " workers." << endl;
-    for (int counter = 0; counter < num_workers; counter++)
-      workers.push_back(WorkUnit(new LocalScheduler(counter), new cGLA(!iteration)));
-    iteration++;
   }
 
   void DoStep(Task& task, cGLA& gla) {
-    // printf("doing step during iteration %d\n", iteration);
-    if (iteration == 1) {
-      int num_trees = (task.index + 1) * kNumTrees / num_threads
-                    - task.index * kNumTrees / num_threads;
-      // printf("worker %d is training %d num trees\n", task.index, num_trees);
-      CvRTParams params(<?=$maxDepth?>, <?=$sampleCount?>, <?=$nodeEpsilon?>,
-                        false, <?=$maxCategories?>, 0, false, <?=$numVars?>,
-                        num_trees, 0, CV_TERMCRIT_ITER);
-      Mat trainData = Mat(training.n_cols, training.n_rows, CV_32F, (void*) training.memptr());
-      Mat responses = Mat(response.n_cols, response.n_rows, CV_32F, response.memptr());
-      Mat types = Mat(kHeight + 1, 1, CV_8U);
-<?  foreach ($types as $counter => $type) { ?>
-      types.at<uchar>(<?=$counter?>, 0) = <?=$type?>;
-<?  } ?>
-      CvRTrees* forest = new CvRTrees();
-      forest->train(trainData, CV_ROW_SAMPLE, responses,
-                    Mat(), Mat(), types, Mat(), params);
-      int index = task.index * kNumTrees / num_threads;
-      printf("task %d trainined %d trees: %d to %d\n",
-             task.index, num_trees, index, index + num_trees - 1);
-      for (int counter = 0; counter < num_trees; counter++)
-        this->forest[index + counter] = forest->get_tree(counter);
-      { // Locking on field variables
-        unique_lock<mutex> guard(m_fragments);
-        forests.push_back(forest);
-      }
-    } else {
-      Tree tree(forest[task.index]);
-<?  if ($regression) { ?>
-      vec predictions(count);
-      for (int index = 0; index < count; index++)
-        predictions(index) = tree.predict(predicting.col(index));
-<?  } else { ?>
-      mat predictions(cardinality, count);
-      for (int index = 0; index < count; index++)
-        predictions(tree.predict(predicting.col(index)), index)++;
-<?  } ?>
-      { // Locking on field variables
-        unique_lock<mutex> guard(m_fragments);
-        total += predictions;
-      }
-    }
   }
 
   int GetNumFragments() {
-<?  if ($regression) { ?>
-    total /= kNumTrees;
+<?  foreach ($states_ as $i => $state) { ?>
+  mean_<?=$i?> = mean(data_<?=$i?>);
+  sdev_<?=$i?> = stddev(data_<?=$i?>, 1);
 <?  } ?>
-    return 25 * (iteration - 1);
+
+<?  if ($single) { ?>
+    int ratio = (data_1.n_cols - 1) / kBlock + 1;
+    int n_fragments = ratio * (ratio + 1) / 2;
+    return n_fragments;
+<?  } else { ?>
+    int ratio_1 = (data_1.n_cols - 1) / kBlock + 1;
+    int ratio_2 = (data_2.n_cols - 1) / kBlock + 1;
+    int n_fragments = ratio_1 * ratio_2;
+    return n_fragments;
+<?  } ?>
   }
 
   Iterator* Finalize(long fragment) {
-    return new Iterator{fragment, fragment * count / 25};
+<?  if ($single) ?> {
+    // The co-ordinates of the current block in the blocking grid are computed.
+    int block_col = (sqrt(1 + 8 * fragment) - 1) / 2;
+    int block_row = fragment - block_col * (block_col + 1) / 2;
+
+    // The span of this block with regard to the covariance matrix.
+    // Both intervas are closed on the left and open on the right.
+    int first_col = kBlock * block_col;
+    int first_row = kBlock * block_row;
+    int final_col = std::min(count, first_col + kBlock);
+    int final_row = std::min(count, first_row + kBlock);
+
+    // The block, i.e. the covariance submatrix, is computed.
+    Mat<Type> col_items = data.cols(first_col, final_col - 1);
+    Mat<Type> row_items = data.cols(first_row, final_row - 1).t();
+
+    Row<Type> col_means =   means.subvec(first_col, final_col - 1);
+    Col<Type> row_means =   means.subvec(first_row, final_row - 1).t();
+    Row<Type> col_stds  = stddevs.subvec(first_col, final_col - 1);
+    Col<Type> row_stds  = stddevs.subvec(first_row, final_row - 1).t();
+
+    Mat<Type> block = (row_items * col_items / kHeight - row_means * col_means)
+                    / (row_stds * col_stds);
+
+    // If the block lies on the main diagonal, not all of its elements are used.
+    // Because the co-variance matrix is symmetric, only the upper triangular
+    // portion of the matrix is returned.
+    bool diagonal = (block_col == block_row);
+
+    return new Iterator(first_col, first_row, n_cols, n_rows, diagonal,
+                        std::move(block));
+  }
+<?  } else { ?>
+    // The co-ordinates of the current block in the blocking grid are computed.
+    int ratio = (data_1.n_cols - 1) / kBlock + 1;
+    int block_col = fragment % ratio
+    int block_row = fragment / ratio;
+
+    // The span of this block with regard to the covariance matrix.
+    // Both intervas are closed on the left and open on the right.
+    int first_col = kBlock * block_col;
+    int first_row = kBlock * block_row;
+    int final_col = std::min(data_1.n_col, first_col + kBlock);
+    int final_row = std::min(data_2.n_col, first_row + kBlock);
+
+    // The block, i.e. the covariance submatrix, is computed.
+    Mat<Type> col_items = data_1.cols(first_col, final_col - 1);
+    Mat<Type> row_items = data_2.cols(first_row, final_row - 1).t();
+
+    Row<Type> col_mean = mean_1.subvec(first_col, final_col - 1);
+    Col<Type> row_mean = mean_2.subvec(first_row, final_row - 1).t();
+    Row<Type> col_sdev = sdev_1.subvec(first_col, final_col - 1);
+    Col<Type> row_sdev = sdev_2.subvec(first_row, final_row - 1).t();
+
+    Mat<Type> block = (row_items * col_items / kHeight - row_means * col_means)
+                    / (row_stds * col_stds);
+
+    bool diagonal = false;
+
+    return new Iterator(first_col, first_row, n_cols, n_rows, diagonal,
+                        std::move(block));
+<?  } ?>
   }
 
   bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {
-    if (it->index == (it->fragment + 1) * count / 25)
+<?  if ($single) { ?>
+    if (it->col == it->n_cols)
       return false;
-<?  for ($i = 0; $i < $length; $i++) { ?>
-    extra<?=$i?> = get<<?=$i?>>(extra[it->index]);
-<?  } ?>
-<?  for ($i = 0; $i < $height; $i++) { ?>
-    input<?=$i?> = predicting(<?=$i?>, it->index);
-<?  } ?>
-<?  if ($regression) { ?>
-    output = total(it->index);
+    x = keys_1(it->row +it->row_shift);
+    y = keys_1(it->col + it->col_shift);
+    val = it->block(it->row, it->col);
+<?  if ($diag) { ?>
+    if ((it->diagonal && it->row == it->col) || it->row == it->n_rows - 1) {
 <?  } else { ?>
-    total.col(it->index).max(output);
+    if ((it->diagonal && it->row == it->col - 1) || it->row == it->n_rows - 1) {
 <?  } ?>
-    it->index++;
+      it->row = 0;
+      it->col++;
+    } else {
+      it->row++;
+    }
+    return true;
+<?  } else { ?>
+    if (it->col == it->n_cols)
+      return false;
+    x = keys_1(it->row +it->row_shift);
+    y = keys_2(it->col + it->col_shift);
+    val = it->block(it->row, it->col);
+    if (it->row == it->n_rows - 1) {
+      it->row = 0;
+      it->col++;
+    } else {
+      it->row++;
+    }
     return true;
   }
+<?  } ?>
 };
-
-typedef <?=$className?>::Iterator <?=$className?>_Iterator;
 
 <?
     return [
