@@ -46,6 +46,8 @@ function Fixed_Vector($t_args) {
         $describer($innerVar, $type);
     };
 
+    $sizeBytes = $size * $type->get('size.bytes');
+
     $sys_headers     = ['armadillo'];
     $user_headers    = [];
     $lib_headers     = [];
@@ -56,7 +58,7 @@ function Fixed_Vector($t_args) {
     $binaryOperators = ['+', '-'];
     $unaryOperators  = [];
     $globalContent   = '';
-    $complex         = false;
+    $complex         = "ColumnIterator<@type, {$sizeBytes}>";
     $properties      = ['vector'];
     $extras          = ['size' => $size, 'direction' => $direction,
                         'type' => $type, 'inputs' => $inputs,
@@ -94,20 +96,23 @@ inline void ToJson(const @type src, Json::Value& dest) {
   dest["data"] = content;
 }
 
+template<>
 inline size_t Serialize(char* buffer, const @type& src) {
-  <?=$type?> * asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
-  const <?=$type?> * colPtr = src.memptr();
+  <?=$type?>* asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
+  const <?=$type?>* colPtr = src.memptr();
   std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
   return @type::n_elem * sizeof(<?=$type?>);
 }
 
+template<>
 inline size_t Deserialize(const char* buffer, @type& dest) {
   const <?=$type?>* asInnerType = reinterpret_cast<const <?=$type?>*>(buffer);
   dest = @type(asInnerType);
   return @type::n_elem * sizeof(<?=$type?>);
 }
 
-inline size_t SerializedSize(@type& dest) {
+template<>
+inline size_t SerializedSize(const @type& dest) {
   return @type::n_elem * sizeof(<?=$type?>);
 }
 
