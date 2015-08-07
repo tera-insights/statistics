@@ -23,7 +23,7 @@
 // Error: A boolean specifying whether an error should be thrown when illegal
 //   input is given. This argument is only used if check is true. If false,
 //   illegal input is simply ignored. The default value is false.
-function Build_Array(array $t_args, array $inputs, array $outputs)
+function Build_Fixed_Array(array $t_args, array $inputs, array $outputs)
 {
     // Class name is randomly generated.
     $className = generate_name("BuildFixedArray");
@@ -80,7 +80,8 @@ function Build_Array(array $t_args, array $inputs, array $outputs)
     $dim = count($size);
     grokit_assert($dim <= 3,
                   "Build Fixed Array: cannot build array of dimension $dim");
-    $result = [NULL, 'Col', 'Mat', 'Cube'][$dim]
+    $types = [NULL, 'Col', 'Mat', 'Cube'];
+    $result = $types[$dim]
             . '::fixed<' . collapse(', ', $size) . '>';
 
     $isScalar = $dim == $numIndices;
@@ -94,18 +95,9 @@ class <?=$className?> {
  public:
   // The type of result.
   using Array = <?=$result?>;
+}
 
 <?
 
 }
-
-function get_dimension($type) {
-    if (canConvert($type, lookupType('base::double')))
-        return [];
-    else if ($type->is('vector'))
-        return $type->get('dimensions');
-    else if ($type->is('matrix'))
-        return $type->get('dimensions');
-    else
-        grokit_error("$type has no dimension.");
-}
+?>
