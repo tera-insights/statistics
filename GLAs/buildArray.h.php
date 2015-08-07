@@ -149,7 +149,7 @@ function Build_Array(array $t_args, array $inputs, array $outputs)
     grokit_assert(count($allocation) == $numScalars,
                   'Build Matrix: incorrect number of elements in allocation.');
     foreach ($allocation as &$element) {
-        $type = gettype($element)
+        $type = gettype($element);
         grokit_assert(in_array($type, ['array', 'string', 'integer']),
                       "Build Matrix: illegal type for allocation entry: $type");
         if ($type == 'string')
@@ -182,7 +182,7 @@ function Build_Array(array $t_args, array $inputs, array $outputs)
         'sufficient' => [
             'initial' => ['or_func', [[['is_null'], ['is_integer', 'is_positive']]]],
             'maximum' => ['or_func', [[['is_null'], ['is_integer', 'is_positive']]]],
-            'error'   => ['is_bool'];
+            'error'   => ['is_bool'],
         ],
     ];
 
