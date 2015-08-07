@@ -22,7 +22,6 @@ function Fixed_Matrix(array $t_args) {
     $nelem = $nrow * $ncol;
 
     $className = generate_name('Matrix_' . $nrow . '_' . $ncol . '_');
-    $cppType = $type->is('real') ? 'mat' : 'imat';
 
     $sys_headers     = ['armadillo', 'algorithm'];
     $user_headers    = [];
@@ -57,7 +56,7 @@ inline void ToJson(const @type src, Json::Value& dest) {
 template<>
 inline size_t Serialize(char* buffer, const @type& src) {
   <?=$type?>* asInnerType = reinterpret_cast<<?=$type?>*>(buffer);
-  const <?=$type?> * colPtr = src.memptr();
+  const <?=$type?>* colPtr = src.memptr();
   std::copy(colPtr, colPtr + @type::n_elem, asInnerType);
   return @type::n_elem * sizeof(<?=$type?>);
 }
