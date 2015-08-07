@@ -171,7 +171,7 @@ class <?=$className?> {
   }
 
   Iterator* Finalize(long fragment) {
-<?  if ($single) ?> {
+<?  if ($single) { ?> {
     // The co-ordinates of the current block in the blocking grid are computed.
     int block_col = (sqrt(1 + 8 * fragment) - 1) / 2;
     int block_row = fragment - block_col * (block_col + 1) / 2;
