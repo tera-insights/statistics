@@ -37,7 +37,7 @@ function Collect(array $t_args, array $inputs, array $outputs)
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = ['armadillo'];
-    $properties   = [];
+    $properties   = ['matrix'];
     $extra        = ['nrow' => $height, 'ncol' => $length, 'type' => $type];
 ?>
 
@@ -54,9 +54,12 @@ class <?=$className?> {
   // The number of rows in the matrix, equal to the number of additional inputs.
   static const constexpr unsigned int kHeight = <?=$height?>;
 
+  // The type of the matrix being constructed.
+  using Matrix = Mat<<?=$type?>>::fixed<kHeight, kLength>
+
  private:
   // The matrix to be filled.
-  Mat<<?=$type?>>::fixed<kHeight, kLength> data;
+  Matrix data;
 
  public:
   <?=$className?>() {
@@ -81,7 +84,7 @@ class <?=$className?> {
   }
 <?  } ?>
 
-  inline const Mat<<?=$type?>>::fixed<kHeight, kLength>& GetMatrix() const {
+  inline const Matrix& GetMatrix() const {
     return data;
   }
 };
