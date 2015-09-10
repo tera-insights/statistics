@@ -58,7 +58,7 @@ function Fixed_Vector($t_args) {
     $binaryOperators = ['+', '-'];
     $unaryOperators  = [];
     $globalContent   = '';
-    $complex         = "ColumnIterator<@type, {$sizeBytes}>";
+    $complex         = "ColumnIterator<@type, 0, {$sizeBytes}>";
     $properties      = ['vector'];
     $extras          = ['size' => $size, 'direction' => $direction,
                         'type' => $type, 'inputs' => $inputs,
