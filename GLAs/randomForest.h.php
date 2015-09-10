@@ -23,12 +23,13 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
     grokit_assert($numTrees + $treeEpsilon > 0,
                   'Random Forest: no stopping criterion given.');
 
-    if ($numTrees > 0)
+    if ($numTrees > 0) {
         $stopping = 'CV_TERMCRIT_ITER';
         if ($treeEpsilon > 0)
             $stopping .= ' | CV_TERMCRIT_EPS';
-    else
+    } else {
         $stopping = 'CV_TERMCRIT_EPS';
+    }
 
     $vector = $inputs_['x'];
     $height = $vector->get('size');
