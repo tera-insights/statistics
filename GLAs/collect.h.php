@@ -55,7 +55,7 @@ class <?=$className?> {
   static const constexpr unsigned int kHeight = <?=$height?>;
 
   // The type of the matrix being constructed.
-  using Matrix = Mat<<?=$type?>>::fixed<kHeight, kLength>
+  using Matrix = Mat<<?=$type?>>::fixed<kHeight, kLength>;
 
  private:
   // The matrix to be filled.
