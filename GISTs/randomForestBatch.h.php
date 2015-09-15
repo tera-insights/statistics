@@ -170,8 +170,8 @@ class <?=$className?> {
   // The forests trained locally. This is used to delete them at the end.
   vector<CvRTrees*> forests;
 
-  // The number of threads being used.
-  int num_threads;
+  // The number of workers in the first round.
+  int num_workers;
 
 <?  if ($regression) { ?>
   // The sum of the predictions for each user.
@@ -207,10 +207,10 @@ class <?=$className?> {
   }
 
   void PrepareRound(WorkUnits& workers, int num_threads) {
-    this->num_threads = num_threads;
-    int num_workers = iteration ? kNumTrees : num_threads;
-    // if (iteration == 0)
-    //   num_workers = this->num_threads = 2;
+    // If there are more threads available than trees, than one thread per tree
+    // is used. Otherwise, the trees are split evenly across the trees.
+    this->num_workers = num_threads > kNumTrees : kNumTrees ? num_threads;
+    int num_workers = iteration ? kNumTrees : num_workers;
     cout << "Beginning round " << iteration << " with " << num_workers << " workers." << endl;
     for (int counter = 0; counter < num_workers; counter++)
       workers.push_back(WorkUnit(new LocalScheduler(counter), new cGLA(!iteration)));
@@ -220,8 +220,8 @@ class <?=$className?> {
   void DoStep(Task& task, cGLA& gla) {
     // printf("doing step during iteration %d\n", iteration);
     if (iteration == 1) {
-      int num_trees = (task.index + 1) * kNumTrees / num_threads
-                    - task.index * kNumTrees / num_threads;
+      int num_trees = (task.index + 1) * kNumTrees / num_workers
+                    - task.index * kNumTrees / num_workers;
       // printf("worker %d is training %d num trees\n", task.index, num_trees);
       CvRTParams params(<?=$maxDepth?>, <?=$sampleCount?>, <?=$nodeEpsilon?>,
                         false, <?=$maxCategories?>, 0, false, <?=$numVars?>,
@@ -235,11 +235,11 @@ class <?=$className?> {
       CvRTrees* forest = new CvRTrees();
       forest->train(trainData, CV_ROW_SAMPLE, responses,
                     Mat(), Mat(), types, Mat(), params);
-      int index = task.index * kNumTrees / num_threads;
+      int index = task.index * kNumTrees / num_workers;
       printf("task %d trainined %d trees: %d to %d\n",
              task.index, num_trees, index, index + num_trees - 1);
       for (int counter = 0; counter < num_trees; counter++)
-        this->forest[index + counter] = forest->get_tree(counter);
+        forest[index + counter] = forest->get_tree(counter);
       { // Locking on field variables
         unique_lock<mutex> guard(m_fragments);
         forests.push_back(forest);
@@ -274,7 +274,7 @@ class <?=$className?> {
   }
 
   bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {
-    if (it->index == (it->fragment + 1) * count / 25)
+    if (it->index == (it->fragment + 1) * count / 25 || it->index >= count)
       return false;
 <?  for ($i = 0; $i < $length; $i++) { ?>
     extra<?=$i?> = get<<?=$i?>>(extra[it->index]);
