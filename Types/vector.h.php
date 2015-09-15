@@ -75,12 +75,14 @@ inline void FromString(@type& x, const char* buffer) {
   char * saveptr = NULL;
   const char * delim = " ";
   char * copy = strdup(buffer);
+  <?=$type?> temp;
 
   current = strtok_r(copy, delim, &saveptr);
 
-  for (auto& val : x) {
+  for (arma::uword i = 0; i < @type::n_elem; i++) {
     FATALIF(current == NULL, "Not enough elements in string representation of array");
-    ToString(val, current);
+    FromString(temp, current);
+    x(i) = temp;
     current = strtok_r(NULL, delim, &saveptr);
   }
 
