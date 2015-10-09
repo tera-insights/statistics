@@ -33,7 +33,7 @@ function Fixed_Matrix(array $t_args) {
     $unaryOperators  = [];
     $globalContent   = '';
     $complex         = "ColumnIterator<@type, 0, sizeof({$type}) * {$nelem}>";
-    $properties      = ['matrix'];
+    $properties      = ['matrix', 'armadillo', 'fixed'];
     $extra           = ['size' => $nrow * $ncol, 'dimensions' => [$nrow, $ncol],
                         'nrow' => $nrow, 'ncol' => $ncol, 'type' => $type];
 ?>

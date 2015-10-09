@@ -59,7 +59,7 @@ function Fixed_Vector($t_args) {
     $unaryOperators  = [];
     $globalContent   = '';
     $complex         = "ColumnIterator<@type, 0, {$sizeBytes}>";
-    $properties      = ['vector'];
+    $properties      = ['vector', 'armadillo', 'fixed'];
     $extras          = ['size' => $size, 'direction' => $direction,
                         'type' => $type, 'inputs' => $inputs,
                         'init' => 'arma::fill::zeros',
