@@ -68,7 +68,8 @@ class GiDTree {
 
   ~GiDTree();
 
-  double predict(const arma::vec& sample) const;
+  template<class T>
+  double predict(const arma::Col<T>& sample) const;
 
  private:
   // Root of this binary tree.
@@ -106,7 +107,8 @@ GiDTree::~GiDTree() {
   cat_count.reset();
 }
 
-double GiDTree::predict(const arma::vec& sample) const {
+template<class T>
+double GiDTree::predict(const arma::Col<T>& sample) const {
   GiDTreeNode* node(root.get());
   arma::vec catbuf(cat_count.n_elem);
   catbuf.fill(-1);
