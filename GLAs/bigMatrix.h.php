@@ -9,11 +9,11 @@
 // which represesent the two components of each pair-wise statistics.
 
 // Template Args:
-// Block: The side length of a block, i.e. the length of each interval.
-// Scale: The scaling factor the dynamically allocated matrix for the input.
-// Width: The input matrix is initially allocated to hold this many inputs.
-// Type:  The type used to perform calculations. The input data type by default.
-// Diag:  Should diagonal entries be returned. Usually, these entries hold no
+// block: The side length of a block, i.e. the length of each interval.
+// scale: The scaling factor the dynamically allocated matrix for the input.
+// width: The input matrix is initially allocated to hold this many inputs.
+// type:  The type used to perform calculations. The input data type by default.
+// diag:  Should diagonal entries be returned. Usually, these entries hold no
 //   meaningful information, e.g. the correlation is always 1.
 function Big_Matrix($t_args, $inputs, $outputs)
 {
