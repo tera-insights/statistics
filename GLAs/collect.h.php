@@ -64,11 +64,6 @@ function Collect(array $t_args, array $inputs, array $outputs)
     $extra        = ['nrow' => $height, 'ncol' => $length, 'type' => $type];
 ?>
 
-using namespace arma;
-using namespace std;
-
-class <?=$className?>;
-
 class <?=$className?> {
  public:
   // The number of columns in the matrix, equal to the cardinality of the index.
@@ -78,7 +73,7 @@ class <?=$className?> {
   static const constexpr unsigned int kHeight = <?=$height?>;
 
   // The type of the matrix being constructed.
-  using Matrix = Mat<<?=$type?>>::fixed<kHeight, kLength>;
+  using Matrix = arma::Mat<<?=$type?>>::fixed<kHeight, kLength>;
 
  private:
   // The matrix to be filled.
