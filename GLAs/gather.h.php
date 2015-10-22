@@ -1,8 +1,5 @@
 /**
- * This GLA is similar to Collect except it takes a variable size input. 
- * An example of this can be seen in gtBio:
- *
- * https://github.com/smithjessk/gtBio/blob/rma-bg-correction/examples/bgPolish.R
+ * This GLA is a combination of Gather from base and Collect from this library.
  */
 
 <?
