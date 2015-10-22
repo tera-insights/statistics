@@ -1,4 +1,4 @@
-// This class is used to compress OpenCV Decision Trees. Due to their versaility
+// This class is used to compress OpenCV Decision Trees.
 
 #ifndef _CvDTree_
 #define _CvDTree_
@@ -12,11 +12,16 @@
 
 
 struct GiDTreeSplit {
+  using SplitPtr = std::unique_ptr<GiDTreeSplit>;
+
   // The index of the split variable.
   int var_idx;
 
   // Whether the categorical split is inversed.
   int inversed;
+
+  // The next split to consider.
+  SplitPtr next;
 
   // The split point.
   union {
@@ -32,6 +37,8 @@ struct GiDTreeSplit {
         inversed(copy->inversed) {
     subset[0] = copy->subset[0];
     subset[1] = copy->subset[1];
+    if (copy->next != nullptr)
+      next.reset(new GiDTreeSplit(copy->next));
   }
 };
 
@@ -45,11 +52,15 @@ struct GiDTreeNode {
   // The split for this node.
   SplitPtr split;
 
+  // The number of items processed at this node.
+  int sample_count;
+
   // The children of this node.
   ChildPtr left, right;
 
   GiDTreeNode(const CvDTreeNode* copy)
-      : value(copy->value) {
+      : value(copy->value),
+        sample_count(copy->sample_count) {
     // If non-leaf, children and split are duplicated.
     // Otherwise, they left as the default values, null pointers.
     if (copy->left != nullptr) {
@@ -113,46 +124,55 @@ double GiDTree::predict(const arma::Col<T>& sample) const {
   arma::vec catbuf(cat_count.n_elem);
   catbuf.fill(-1);
 
-  while (node->left != nullptr) {
+  while (node->left) {
     GiDTreeSplit* split(node->split.get());
     int dir = 0;
-    int vi = split->var_idx; // Index of splitting variable.
-    int ci = var_type(vi); // Type of splitting variable.
-    double val = sample(vi); // Value of splitting variable
+    for (; !dir && split != nullptr; split = split->next.get()) {
+      int vi = split->var_idx; // Index of splitting variable.
+      int ci = var_type(vi); // Type of splitting variable.
+      T val = sample(vi); // Value of splitting variable
 
-    if (ci < 0) { // Numerical split, simple bounds check.
-      dir = (val <= split->ord.c) ? -1 : 1;
-    } else {
-      int c = -1;
-      if (c < 0) {
-        int a = c = cat_ofs(ci);
-        int b = (ci + 1 >= cat_ofs.n_elem) ? cat_map.n_elem : cat_ofs(ci + 1);
+      if (ci < 0) {
+        // Numerical split, simple bounds check.
+        dir = (val <= split->ord.c) ? -1 : 1;
+      } else {
+        // Categorical split.
+        int c = catbuf(ci);
+        if (c < 0) {
+          int a = c = cat_ofs(ci);
+          int b = (ci + 1 >= cat_ofs.n_elem) ? cat_map.n_elem : cat_ofs(ci + 1);
 
-        int ival = (int) std::round(val);
-        int sh = 0;
+          // This has been empirically demonstrated to be faster than casting.
+          // int ival = (int) std::round(val);
+          int ival = val + 0.5;
+          int sh = 0;
 
-        while (a < b) {
-          sh++;
-          c = (a + b) >> 1;
-          if (ival < cat_map(c))
-            b = c;
-          else if (ival > cat_map(c))
-            a = c + 1;
-          else
-            break;
+          while (a < b) {
+            sh++;
+            c = (a + b) >> 1;
+            if (ival < cat_map(c))
+              b = c;
+            else if (ival > cat_map(c))
+              a = c + 1;
+            else
+              break;
+          }
+
+          if (c < 0 || ival != cat_map(c))
+            continue;
+
+          catbuf(ci) = c -= cat_ofs(ci);
         }
-
-        if (c < 0 || ival != cat_map(c))
-          continue;
-
-        catbuf(ci) = c -= cat_ofs(ci);
+        c = ((c == 65535) && is_buf_16u) ? -1 : c;
+        dir = (2 * ((split->subset[c >> 5] & (1 << (c & 31))) == 0) - 1);
       }
-      c = ((c == 65535) && is_buf_16u) ? -1 : c;
-      dir = (2 * ((split->subset[c >> 5] & (1 << (c & 31))) == 0) - 1);
+
+      if (split->inversed)
+        dir = -dir;
     }
 
-    if (split->inversed)
-      dir = -dir;
+    if (!dir)
+      dir = (node->right->sample_count > node->left->sample_count) ? 1 : -1;
 
     node = (dir < 0) ? node->left.get() : node->right.get();
   }
