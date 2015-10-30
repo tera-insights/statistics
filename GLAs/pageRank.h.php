@@ -129,34 +129,16 @@ class <?=$className?> {
       Update(t, false);
       return;
     }
+    uint64_t t_index = index_map[Hash(t_index)];
+    uint64_t s_index = index_map[Hash(s_index)];
 <?  if ($adj) { ?>
-    sum(t) += prod(info.col(s));
+    sum(t_index) += prod(info.col(s));
 <?  } else { ?>
-    sum(t) += weight(s) * rank(s);
+    sum(t_index) += weight(_indexs) * rank(s_index);
 <?  } ?>
   }
 
-  // Hashes are merged.
   void AddState(<?=$className?> &other) {
-    if (iteration == 0) {
-      for (auto it = other.indices.begin(); it != other.indices.end(); ++it) {
-        // Iterate over the vertices seen by the other state.
-        const Key& key = it->first;
-        auto match = indices.find(key);
-        if (match == indices.end()) {
-          // This state has not seen the current vertex.
-          indices.insert(key, num_nodes);
-          keys.push_back(key);
-          // The edge information is copied over.
-          Resize();
-          edges(num_nodes) = other.edges(it->second);
-          num_nodes++;
-        } else {
-          // The current vertex was also seen by this state.
-          edges(match->second) += other.edges(it->second);
-        }
-      }
-    }
   }
 
   // Most computation that happens at the end of each iteration is parallelized
@@ -164,9 +146,6 @@ class <?=$className?> {
   bool ShouldIterate(ConstantState& state) {
     iteration++;
     if (iteration == 1) {
-      // These operation are not easily parallelized and are performed here.
-      index_map.swap(indices);
-      key_set.swap(keys);
       // Allocating space can't be parallelized.
 <?  if ($adj) { ?>
       info.set_size(2, num_nodes);
