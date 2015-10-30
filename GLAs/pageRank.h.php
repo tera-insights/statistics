@@ -136,8 +136,7 @@ class <?=$className?> {
 <?  } ?>
   }
 
-  // Empty rows are stripped such that white space will only ever be at the end
-  // of both keys and data.
+  // Hashes are merged.
   void AddState(<?=$className?> &other) {
     if (iteration == 0) {
       for (auto it = other.indices.begin(); it != other.indices.end(); ++it) {
