@@ -134,7 +134,7 @@ class <?=$className?> {
 <?  if ($adj) { ?>
     sum(t_index) += prod(info.col(s));
 <?  } else { ?>
-    sum(t_index) += weight(_indexs) * rank(s_index);
+    sum(t_index) += weight(s_index) * rank(s_index);
 <?  } ?>
   }
 
