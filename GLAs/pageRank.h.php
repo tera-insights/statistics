@@ -139,21 +139,23 @@ class <?=$className?> {
   // Empty rows are stripped such that white space will only ever be at the end
   // of both keys and data.
   void AddState(<?=$className?> &other) {
-    for (auto it = other.indices.begin(); it != other.indices.end(); ++it) {
-      // Iterate over the vertices seen by the other state.
-      const Key& key = it->first;
-      auto match = indices.find(key);
-      if (match == indices.end()) {
-        // This state has not seen the current vertex.
-        indices.insert(key, num_nodes);
-        keys.push_back(key);
-        // The edge information is copied over.
-        Resize();
-        edges(num_nodes) = other.edges(it->second);
-        num_nodes++;
-      } else {
-        // The current vertex was also seen by this state.
-        edges(match->second) += other.edges(it->second);
+    if (iteration == 0) {
+      for (auto it = other.indices.begin(); it != other.indices.end(); ++it) {
+        // Iterate over the vertices seen by the other state.
+        const Key& key = it->first;
+        auto match = indices.find(key);
+        if (match == indices.end()) {
+          // This state has not seen the current vertex.
+          indices.insert(key, num_nodes);
+          keys.push_back(key);
+          // The edge information is copied over.
+          Resize();
+          edges(num_nodes) = other.edges(it->second);
+          num_nodes++;
+        } else {
+          // The current vertex was also seen by this state.
+          edges(match->second) += other.edges(it->second);
+        }
       }
     }
   }
