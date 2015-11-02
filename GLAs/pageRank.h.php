@@ -13,6 +13,7 @@
 
 // Resources:
 // armadillo, vector, unordered_map: various data structures.
+// algorithm: max
 function Page_Rank($t_args, $inputs, $outputs)
 {
     // Class name is randomly generated.
@@ -26,7 +27,7 @@ function Page_Rank($t_args, $inputs, $outputs)
     $adj = $t_args['adj'];
 
     // Construction of outputs.
-    $outputs_ = ['node' => $vertex, 'rank' = lookupType('float')];
+    $outputs_ = ['node' => $vertex, 'rank' => lookupType('float')];
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
     $sys_headers  = ['armadillo', 'vector', 'unordered_map'];
@@ -45,15 +46,6 @@ class <?=$className?>;
 
 class <?=$className?> {
  public:
-  // The key type for the map.
-  using Key = uint64_t;
-
-  // A mapping of vertex IDs to a zero-based enumeration.
-  using Map = std::unordered_map<Key, uint64_t>;
-
-  // The list of keys, a reverse mapping of the above.
-  using KeySet = std::vector<Key>;
-
   // The current and final indices of the result for the given fragment.
   using Iterator = std::pair<int, int>;
 
@@ -110,7 +102,7 @@ class <?=$className?> {
   arma::uvec edges;
 
   // The number of unique nodes seen.
-  long num_nodes;
+  uint64_t num_nodes;
 
   // The current iteration.
   int iteration;
@@ -129,16 +121,17 @@ class <?=$className?> {
       Update(t, false);
       return;
     }
-    uint64_t t_index = index_map[Hash(t_index)];
-    uint64_t s_index = index_map[Hash(s_index)];
 <?  if ($adj) { ?>
-    sum(t_index) += prod(info.col(s));
+    sum(t) += prod(info.col(s));
 <?  } else { ?>
-    sum(t_index) += weight(s_index) * rank(s_index);
+    sum(t) += weight(s) * rank(s);
 <?  } ?>
   }
 
   void AddState(<?=$className?> &other) {
+    num_nodes = max(num_nodes, other.num_nodes);
+    Resize();
+    edges.subvec(0, other.num_nodes) += other.edges
   }
 
   // Most computation that happens at the end of each iteration is parallelized
@@ -200,26 +193,17 @@ class <?=$className?> {
   // Updates the graph information based on vertex and if the edge it was part
   // of originated from it.
   void Update(Vertex v, bool outgoing) {
-    Key key = Hash(v);
-    auto it = indices.find(key);
-    if (it == indices.end()) {
-      // New node seen. Add it to map.
-      indices.insert(key, num_nodes);
-      keys.push_back(key);
-      // Increase the edges vector element if the edge was outgoing.
-      Resize();
-      edges(num_nodes) = outgoing;
-      num_nodes++;
-    } else {
-      // Increment edges vector element if an edge originated from the vertex.
-      edges(it->second) += outgoing;
-    }
+    // The number of nodes is simply the highest vertex ID seen.
+    num_nodes = max(v, num_nodes);
+    // Increment edges vector element if an edge originated from the vertex.
+    Resize();
+    edges(v) += outgoing;
   }
 
   // This ensures that the edges vector is large enough. If not, it is resized.
   void Resize() {
-    if (num.nodes == edges.n_elem)
-      edges.resize(kScale * edges.n_elem);
+    if (num_nodes >  edges.n_elem)
+      edges.resize(num_nodes);
   }
 };
 
