@@ -97,8 +97,7 @@ class <?=$className?> {
     // Used to iterate over this fragment during output.
     int col, row;
 
-    Iterator(int col_shift, int row_shift, int n_cols, int n_rows,
-             bool diagonal, Mat<Type>&& block)
+    Iterator(int col_shift, int row_shift, bool diagonal, Mat<Type>&& block)
         : col_shift(col_shift),
           row_shift(row_shift),
           block(block),
@@ -120,7 +119,7 @@ class <?=$className?> {
   Mat<Type> data;
 
   // The set of keys processed whose indices correspond to the rows in data.
-  Col<Key> keys;
+  std::vector<Key> keys;
 
   // The variance and the mean for each item.
   Row<Type> stddevs, means;
@@ -131,18 +130,15 @@ class <?=$className?> {
  public:
   <?=$className?>()
       : data(kHeight, kWidth),
-        keys(kWidth),
         count(0) {
   }
 
   // Basic dynamic array allocation.
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
-    if (count == data.n_cols) {
-      data.resize(kHeight, kScale * data.n_cols);
-      keys.resize(kScale * keys.n_elem);
-    }
+    if (count == data.n_cols)
+      data.resize(kHeight, kScale * count);
     data.col(count) = Col<Type>(vector.data(), kHeight);
-    keys(count) = key;
+    keys.push_back(key);
     count++;
   }
 
@@ -150,16 +146,14 @@ class <?=$className?> {
   // of both keys and data.
   void AddState(<?=$className?> &other) {
     data.resize(kHeight, count);
-    keys.resize(count);
     data.insert_cols(count, other.data);
-    keys.insert_rows(count, other.keys);
+    keys.insert(keys.end(), other.keys.begin(), other.keys.end());
     count += other.count;
   }
 
   int GetNumFragments() {
     // The remaining whitespace is stripped.
     data.resize(kHeight, count);
-    keys.resize(count);
 
     // Computing the relevant statistics for each item.
     stddevs = stddev(data, 1);
@@ -184,6 +178,10 @@ class <?=$className?> {
     int final_col = std::min(count, first_col + kBlock);
     int final_row = std::min(count, first_row + kBlock);
 
+    // The dimension of the rectangular block.
+    int num_cols = final_col - first_col;
+    int num_rows = final_row - first_row;
+
     // The block, i.e. the covariance submatrix, is computed.
     Mat<Type> col_items = data.cols(first_col, final_col - 1);
     Mat<Type> row_items = data.cols(first_row, final_row - 1).t();
@@ -207,8 +205,8 @@ class <?=$className?> {
   bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {
     if (it->col == it->n_cols)
       return false;
-    x = keys(it->row +it->row_shift);
-    y = keys(it->col + it->col_shift);
+    x = keys[it->row + it->row_shift];
+    y = keys[it->col + it->col_shift];
     val = it->block(it->row, it->col);
 <?  if ($diag) { ?>
     if ((it->diagonal && it->row == it->col) || it->row == it->n_rows - 1) {
