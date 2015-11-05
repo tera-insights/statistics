@@ -58,7 +58,7 @@ function Page_Rank($t_args, $inputs, $outputs)
     $outputs_ = ['node' => $vertex, 'rank' => lookupType('float')];
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
-    $sys_headers  = ['armadillo', 'vector', 'unordered_map'];
+    $sys_headers  = ['armadillo', 'vector', 'mct/hash-map.hpp', 'unordered_map', 'algorithm'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = ['armadillo'];
@@ -86,7 +86,7 @@ class <?=$className?> {
   using Key = uint64_t;
 
   // A mapping of vertex IDs to a zero-based enumeration.
-  using Map = std::unordered_map<Key, uint64_t>;
+  using Map = mct::closed_hash_map<Key, uint64_t>;
 
   // The list of keys, a reverse mapping of the above.
   using KeySet = std::vector<Key>;
@@ -112,8 +112,8 @@ class <?=$className?> {
   // The work is split into chunks of this size before being partitioned.
   static const constexpr int kBlock = 32;
 
-  // The number of fragments to use.
-  static const constexpr int kFragments = 64;
+  // The maximum number of fragments to use.
+  static const constexpr int kMaxFragments = 64;
 
  private:
 <?  if ($adj) { ?>
@@ -124,14 +124,14 @@ class <?=$className?> {
 <?  } else { ?>
   // The edge weighting for each vertex. The weight is the precomputed inverse
   // of the number of edges for that vertex.
-  static arma::vec weight;
+  static arma::rowvec weight;
 
   // The page-rank for each vertex.
-  static arma::vec rank;
+  static arma::rowvec rank;
 <?  } ?>
 
   // The value of the summation over adjacent nodes for each vertex.
-  static arma::vec sum;
+  static arma::rowvec sum;
 
   // The set of vertices are mapped to zero-based consecutive indices.
   static Map index_map;
@@ -146,20 +146,18 @@ class <?=$className?> {
   Map indices;
   KeySet keys;
 
-  // The number of outgoing edges for each node, stored as a double to ease type
-  // conversion when computing the edge weights as the inverse of this.
-  arma::vec edges;
-
   // The number of unique nodes seen.
   long num_nodes;
 
   // The current iteration.
   int iteration;
 
+  // The number of fragmetns for the result.
+  int num_fragments;
+
  public:
   <?=$className?>(const <?=$constantState?>& state)
       : constant_state(state),
-        edges(kSize),
         num_nodes(state.num_nodes),
         iteration(state.iteration) {
   }
@@ -171,10 +169,18 @@ class <?=$className?> {
       Update(t, false);
       return;
     }
-    uint64_t t_index = index_map[Hash(t)];
     uint64_t s_index = index_map[Hash(s)];
+    if (iteration == 1) {
 <?  if ($adj) { ?>
-    sum(t_index) += prod(info.col(s));
+      info(1, s_index)++;
+<?  } else { ?>
+      weight(s_index)++;
+<?  } ?>
+      return;
+    }
+    uint64_t t_index = index_map[Hash(t)];
+<?  if ($adj) { ?>
+    sum(t_index) += prod(info.col(s_index));
 <?  } else { ?>
     sum(t_index) += weight(s_index) * rank(s_index);
 <?  } ?>
@@ -189,15 +195,8 @@ class <?=$className?> {
         auto match = indices.find(key);
         if (match == indices.end()) {
           // This state has not seen the current vertex.
-          indices.insert(make_pair(key, num_nodes));
+          indices.insert(make_pair(key, num_nodes++));
           keys.push_back(key);
-          // The edge information is copied over.
-          Resize();
-          edges(num_nodes) = other.edges(it->second);
-          num_nodes++;
-        } else {
-          // The current vertex was also seen by this state.
-          edges(match->second) += other.edges(it->second);
         }
       }
     }
@@ -210,42 +209,55 @@ class <?=$className?> {
     cout << "finished iteration " << iteration << endl;
     if (iteration == 1) {
       state.num_nodes = num_nodes;
-      edges.resize(num_nodes);
+      cout << "num_nodes: " << num_nodes << endl;
       // These operation are not easily parallelized and are performed here.
       index_map.swap(indices);
       key_set.swap(keys);
       // Allocating space can't be parallelized.
+      sum.set_size(num_nodes);
 <?  if ($adj) { ?>
       info.set_size(2, num_nodes);
-      info.row(0) = 1 / num_nodes;
-      info.row(1) = pow(edges, -1);
+      info.row(0).fill(1);
 <?  } else { ?>
       rank.set_size(num_nodes);
       weight.set_size(num_nodes);
-      rank = 1 / (double) num_nodes;
-      weight = pow(edges, -1);
+      rank.fill(1);
 <?  } ?>
       return true;
+    } else if (iteration == 2) {
+<?  if ($adj) { ?>
+      info.row(1) = pow(info.row(1), -1);
+<?  } else { ?>
+      weight = pow(weight, -1);
+<?  } ?>
+      return true;
+    } else {
+      cout << "sum: " << accu(sum) << endl;
+      cout << "pr: " << accu(info.row(0)) << endl;
+      return iteration < kIterations + 1;
     }
-    else return iteration < kIterations + 1;
   }
 
   int GetNumFragments() {
-    return kFragments;
+    long size = (num_nodes - 1) / kBlock + 1;  // num_nodes / kBlock rounded up.
+    num_fragments = (iteration <= 1) ? 0 : min(size, (long) kMaxFragments);
+    cout << "Returning " << num_fragments << " fragments" << endl;
+    return num_fragments;
   }
 
   Iterator* Finalize(int fragment) {
     int count = key_set.size();
     // The ordering of operations is important. Don't change it.
-    int first = fragment * (count / kBlock) / kFragments * kBlock;
-    int final = (fragment == kFragments - 1)
+    int first = fragment * (count / kBlock) / num_fragments * kBlock;
+    int final = (fragment == num_fragments - 1)
               ? count - 1
-              : (fragment + 1) * (count / kBlock) / kFragments * kBlock - 1;
+              : (fragment + 1) * (count / kBlock) / num_fragments * kBlock - 1;
+    // printf("fragment: %d\tfirst: %d\tfinal: %d\n", fragment, first, final);
 <?  if ($adj) { ?>
-    info.row(0).subvec(first, final) = (1 - kDamping) / count
+    info.row(0).subvec(first, final) = (1 - kDamping)
                                      + kDamping * sum.subvec(first, final);
 <?  } else { ?>
-    rank.subvec(first, final) = (1 - kDamping) / count
+    rank.subvec(first, final) = (1 - kDamping)
                               + kDamping * sum.subvec(first, final);
 <?  } ?>
     sum.subvec(first, final).zeros();
@@ -255,7 +267,7 @@ class <?=$className?> {
   bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs_)?>) {
     if (iteration < kIterations + 1)
       return false;
-    if (it->first != it->second)
+    if (it->first > it->second)
       return false;
     node = key_set[it->first];
 <?  if ($adj) { ?>
@@ -275,33 +287,20 @@ class <?=$className?> {
     auto it = indices.find(key);
     if (it == indices.end()) {
       // New node seen. Add it to map.
-      indices.insert(make_pair(key, num_nodes));
+      indices.insert(make_pair(key, num_nodes++));
       keys.push_back(key);
-      // Increase the edges vector element if the edge was outgoing.
-      Resize();
-      edges(num_nodes) = outgoing;
-      num_nodes++;
-    } else {
-      // Increment edges vector element if an edge originated from the vertex.
-      edges(it->second) += outgoing;
     }
-  }
-
-  // This ensures that the edges vector is large enough. If not, it is resized.
-  void Resize() {
-    if (num_nodes == edges.n_elem)
-      edges.resize(kScale * edges.n_elem);
   }
 };
 
-// Define the static member types.
+// Initialize the static member types.
 <?  if ($adj) { ?>
 arma::mat <?=$className?>::info;
 <?  } else { ?>
-arma::vec <?=$className?>::weight;
-arma::vec <?=$className?>::rank;
+arma::rowvec <?=$className?>::weight;
+arma::rowvec <?=$className?>::rank;
 <?  } ?>
-arma::vec <?=$className?>::sum;
+arma::rowvec <?=$className?>::sum;
 <?=$className?>::Map <?=$className?>::index_map;
 <?=$className?>::KeySet <?=$className?>::key_set;
 
