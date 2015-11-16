@@ -25,6 +25,9 @@ function Expand(array $t_args, array $inputs, array $outputs, array $states)
         array_set_index($outputs, $index,
                         array_get_index($inputs, $index)->get('type'));
 
+    $inputs_ = $inputs;
+    $outputs_ = array_combine(array_keys($inputs_), $outputs);
+
     // Return values.
     $sys_headers  = ['armadillo'];
     $user_headers = [];
@@ -39,28 +42,33 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   // The size of each container.
-  static const constexpr int kLength = <?=$size?>
+  static const constexpr int kLength = <?=$size?>;
 
  private:
-  // The vector to be placed on top of the input array.
+  // Pointers to the containers.
+<?  foreach ($inputs_ as $name => $type) { ?>
+  const <?=$type?>* <?=$name?>_ptr;
+<?  } ?>
+
+  int index;
 
  public:
-  <?=$className?>(const <?=$constantState?>& state)
-      : constant_state(state)  {
+  <?=$className?>() { }
+
+  void ProcessTuple(<?=const_typed_ref_args($inputs_)?>) {
+<?  foreach ($inputs_ as $name => $type) { ?>
+    <?=$name?>_ptr = &<?=$name?>;
+<?  } ?>
+    index = 0;
   }
 
-  bool ProcessTuple(<?=process_tuple_args($inputs, $outputs)?>) {
-<?  if ($normal) { ?>
-    item = normalise(rowvec(<?=$point?>.data(), kLength));
-    distances = item * constant_state.neighbors;
-    distances.max(prediction);
-<?  } else { ?>
-    item = colvec(<?=$point?>.data(), kLength);
-    neighbors.each_col() -= item;
-    distances = sum(square(neighbors));
-    distances.min(prediction);
+  bool GetNextResult(<?=typed_ref_args($outputs_)?>) {
+    if (index == kLength)
+      return false;
+<?  foreach ($inputs_ as $name => $type) { ?>
+    <?=$name?> = (*<?=$name?>_ptr)[index];
 <?  } ?>
-    <?=$class?> = prediction;
+    index++;
     return true;
   }
 };
