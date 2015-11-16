@@ -41,7 +41,8 @@ class <?=$className?>ConstantState {
 //   adjacently. Doing so reduced random lookups but increases update time.
 // hash: Whether the key IDs need to be converted to zero-based indices.
 // Resources:
-// armadillo, vector, unordered_map: various data structures.
+// armadillo: various data structures
+// algorithm: max
 function Page_Rank($t_args, $inputs, $outputs)
 {
     // Class name is randomly generated.
@@ -53,12 +54,13 @@ function Page_Rank($t_args, $inputs, $outputs)
 
     // Initialization of local variables from template arguments.
     $adj = $t_args['adj'];
+    $debug = get_default($t_args, 'debug', 1);
 
     // Construction of outputs.
     $outputs_ = ['node' => $vertex, 'rank' => lookupType('float')];
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
-    $sys_headers  = ['armadillo', 'vector', 'mct/hash-map.hpp', 'unordered_map', 'algorithm'];
+    $sys_headers  = ['armadillo', 'algorithm'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = ['armadillo'];
@@ -82,26 +84,8 @@ class <?=$className?> {
   // The constant state for this GLA.
   using ConstantState = <?=$constantState?>;
 
-  // The key type for the map.
-  using Key = uint64_t;
-
-  // A mapping of vertex IDs to a zero-based enumeration.
-  using Map = mct::closed_hash_map<Key, uint64_t>;
-
-  // The list of keys, a reverse mapping of the above.
-  using KeySet = std::vector<Key>;
-
   // The current and final indices of the result for the given fragment.
   using Iterator = std::pair<int, int>;
-
-  // The type of the vertex IDs.
-  using Vertex = <?=$vertex?>;
-
-  // The factor by which to scale the size of the vectors;
-  static const constexpr int kScale = 2;
-
-  // The size various objects are initialized to have.
-  static const constexpr int kSize = 100;
 
   // The value of the damping constant used in the page rank algorithm.
   static const constexpr float kDamping = 0.85;
@@ -133,18 +117,8 @@ class <?=$className?> {
   // The value of the summation over adjacent nodes for each vertex.
   static arma::rowvec sum;
 
-  // The set of vertices are mapped to zero-based consecutive indices.
-  static Map index_map;
-
-  // A reverse mapping of the above, in which the key is just the index.
-  static KeySet key_set;
-
   // The typical constant state for an iterable GLA.
   const ConstantState& constant_state;
-
-  // The local objects used to compute the above mappings.
-  Map indices;
-  KeySet keys;
 
   // The number of unique nodes seen.
   long num_nodes;
@@ -165,54 +139,42 @@ class <?=$className?> {
   // Basic dynamic array allocation.
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
     if (iteration == 0) {
-      Update(s, true);
-      Update(t, false);
+      num_nodes = max((long) max(s, t), num_nodes);
       return;
-    }
-    uint64_t s_index = index_map[Hash(s)];
-    if (iteration == 1) {
+    } else if (iteration == 1) {
 <?  if ($adj) { ?>
-      info(1, s_index)++;
+      info(1, s)++;
 <?  } else { ?>
-      weight(s_index)++;
+      weight(s)++;
 <?  } ?>
-      return;
-    }
-    uint64_t t_index = index_map[Hash(t)];
+    } else {
 <?  if ($adj) { ?>
-    sum(t_index) += prod(info.col(s_index));
+      sum(t) += prod(info.col(s));
 <?  } else { ?>
-    sum(t_index) += weight(s_index) * rank(s_index);
+      sum(t) += weight(s) * rank(s);
 <?  } ?>
+    }
   }
 
   // Hashes are merged.
   void AddState(<?=$className?> &other) {
-    if (iteration == 0) {
-      for (auto it = other.indices.begin(); it != other.indices.end(); ++it) {
-        // Iterate over the vertices seen by the other state.
-        const Key& key = it->first;
-        auto match = indices.find(key);
-        if (match == indices.end()) {
-          // This state has not seen the current vertex.
-          indices.insert(make_pair(key, num_nodes++));
-          keys.push_back(key);
-        }
-      }
-    }
+    if (iteration == 0)
+      num_nodes = max(num_nodes, other.num_nodes);
   }
 
   // Most computation that happens at the end of each iteration is parallelized
   // by performed it inside Finalize.
   bool ShouldIterate(ConstantState& state) {
     state.iteration = ++iteration;
+<?  if ($debug > 0) { ?>
     cout << "finished iteration " << iteration << endl;
+<?  } ?>
     if (iteration == 1) {
-      state.num_nodes = num_nodes;
+      // num_nodes is incremented because IDs are 0-based.
+      state.num_nodes = ++num_nodes;
+<?  if ($debug > 0) { ?>
       cout << "num_nodes: " << num_nodes << endl;
-      // These operation are not easily parallelized and are performed here.
-      index_map.swap(indices);
-      key_set.swap(keys);
+<?  } ?>
       // Allocating space can't be parallelized.
       sum.set_size(num_nodes);
 <?  if ($adj) { ?>
@@ -224,43 +186,53 @@ class <?=$className?> {
       rank.fill(1);
 <?  } ?>
       return true;
-    } else if (iteration == 2) {
-<?  if ($adj) { ?>
-      info.row(1) = pow(info.row(1), -1);
-<?  } else { ?>
-      weight = pow(weight, -1);
-<?  } ?>
-      return true;
     } else {
+<?  if ($debug > 1) { ?>
+      cout << "weights: " << accu(info.row(1)) << endl;
       cout << "sum: " << accu(sum) << endl;
       cout << "pr: " << accu(info.row(0)) << endl;
+<?  } ?>
       return iteration < kIterations + 1;
     }
   }
 
   int GetNumFragments() {
     long size = (num_nodes - 1) / kBlock + 1;  // num_nodes / kBlock rounded up.
-    num_fragments = (iteration <= 1) ? 0 : min(size, (long) kMaxFragments);
+    num_fragments = (iteration == 0) ? 0 : min(size, (long) kMaxFragments);
+<?  if ($debug > 0) { ?>
     cout << "Returning " << num_fragments << " fragments" << endl;
+<?  } ?>
     return num_fragments;
   }
 
-  Iterator* Finalize(int fragment) {
-    int count = key_set.size();
+  // The fragment is given as a long so that the below formulas don't overflow.
+  Iterator* Finalize(long fragment) {
+    int count = num_nodes;
     // The ordering of operations is important. Don't change it.
     int first = fragment * (count / kBlock) / num_fragments * kBlock;
     int final = (fragment == num_fragments - 1)
               ? count - 1
               : (fragment + 1) * (count / kBlock) / num_fragments * kBlock - 1;
     // printf("fragment: %d\tfirst: %d\tfinal: %d\n", fragment, first, final);
+    if  (iteration == 2) {
 <?  if ($adj) { ?>
-    info.row(0).subvec(first, final) = (1 - kDamping)
-                                     + kDamping * sum.subvec(first, final);
+      info.row(0).subvec(first, final).fill(1);
+      info.row(1).subvec(first, final) = pow(info.row(1).subvec(first, final), -1);
 <?  } else { ?>
-    rank.subvec(first, final) = (1 - kDamping)
-                              + kDamping * sum.subvec(first, final);
+      rank.subvec(first, final).fill(1);
+      weight.subvec(first, final) = 1 / weight.subvec(first, final);
 <?  } ?>
-    sum.subvec(first, final).zeros();
+      sum.subvec(first, final).fill(0);
+    } else {
+<?  if ($adj) { ?>
+      info.row(0).subvec(first, final) = (1 - kDamping)
+                                       + kDamping * sum.subvec(first, final);
+<?  } else { ?>
+      rank.subvec(first, final) = (1 - kDamping)
+                                + kDamping * sum.subvec(first, final);
+<?  } ?>
+      sum.subvec(first, final).zeros();
+    }
     return new Iterator(first, final);
   }
 
@@ -269,7 +241,7 @@ class <?=$className?> {
       return false;
     if (it->first > it->second)
       return false;
-    node = key_set[it->first];
+    node = it->first;
 <?  if ($adj) { ?>
     rank = info(0, it->first);
 <?  } else { ?>
@@ -277,19 +249,6 @@ class <?=$className?> {
 <?  } ?>
     it->first++;
     return true;
-  }
-
- private:
-  // Updates the graph information based on vertex and if the edge it was part
-  // of originated from it.
-  void Update(Vertex v, bool outgoing) {
-    Key key = Hash(v);
-    auto it = indices.find(key);
-    if (it == indices.end()) {
-      // New node seen. Add it to map.
-      indices.insert(make_pair(key, num_nodes++));
-      keys.push_back(key);
-    }
   }
 };
 
@@ -301,9 +260,6 @@ arma::rowvec <?=$className?>::weight;
 arma::rowvec <?=$className?>::rank;
 <?  } ?>
 arma::rowvec <?=$className?>::sum;
-<?=$className?>::Map <?=$className?>::index_map;
-<?=$className?>::KeySet <?=$className?>::key_set;
-
 
 typedef <?=$className?>::Iterator <?=$className?>_Iterator;
 
