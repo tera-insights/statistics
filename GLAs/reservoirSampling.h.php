@@ -144,7 +144,7 @@ class <?=$className?> {
 
   // Modifies P via the simple algorithm described by Vitter. Local variables
   // are used to refrain from modifying count. As above, instructions could be
-  // reduced by using add assignment for count with P. This is disregard for
+  // reduced by using add assignment for count with P. This is disregarded for
   // readability, as the reduction in instructions is neglible.
   void CalculateToSkipComplex() {
     R  = count * (W - 1.0);
