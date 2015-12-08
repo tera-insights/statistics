@@ -4,11 +4,9 @@ function Expand(array $t_args, array $inputs, array $outputs, array $states)
     // Class name is randomly generated.
     $className = generate_name("Expand");
 
-    // Validating inputs and outputs.
-    $count = count($inputs);
-    grokit_assert($count > 0, 'Expand: received 0 inputs.');
-    grokit_assert(in_array(count($outputs), [$count, $count + 1]),
-                  'Expand: an invalid number of outputs was received.');
+    // Processing of inputs.
+    $num_inputs = count($inputs);
+    grokit_assert($num_inputs > 0, 'Expand: received 0 inputs.');
 
     foreach (array_values($inputs) as $index => $type) {
         grokit_assert($type->is('vector') || $type->is('array'),
@@ -20,22 +18,31 @@ function Expand(array $t_args, array $inputs, array $outputs, array $states)
                           'Expand: all inputs must have the same size');
     }
 
-    // Setting output types.
+    $inputs_ = $inputs;
+
+    // Processing of outputs.
+    $num_outputs = count($outputs);
+    $produce_index = $num_outputs == $num_inputs + 1;
+    grokit_assert($produce_index || $num_outputs == $num_inputs,
+                  'Expand: an invalid number of outputs was received.');
+
     for ($index = 0; $index < $count; $index++)
         array_set_index($outputs, $index,
                         array_get_index($inputs, $index)->get('type'));
 
-    $inputs_ = $inputs;
-    $outputs_ = array_combine(array_keys($inputs_), $outputs);
+    $output_keys = array_keys($inputs_);
+    if ($produce_index) {
+        array_set_index($outputs, $num_outputs, lookupType('int'));
+        $output_keys[] = 'index';
+    }
+    $outputs_ = array_combine($output_keys, $outputs);
 
     // Return values.
-    $sys_headers  = ['armadillo'];
+    $sys_headers  = [];
     $user_headers = [];
     $lib_headers  = [];
-    $libraries    = ['armadillo'];
+    $libraries    = [];
 ?>
-
-using namespace arma;
 
 class <?=$className?>;
 
@@ -50,25 +57,29 @@ class <?=$className?> {
   const <?=$type?>* <?=$name?>_ptr;
 <?  } ?>
 
-  int index;
+  // The iterator used to traverse the containers.
+  int iter;
 
  public:
-  <?=$className?>() { }
+  <?=$className?>() {}
 
   void ProcessTuple(<?=const_typed_ref_args($inputs_)?>) {
 <?  foreach ($inputs_ as $name => $type) { ?>
     <?=$name?>_ptr = &<?=$name?>;
 <?  } ?>
-    index = 0;
+    iter = 0;
   }
 
   bool GetNextResult(<?=typed_ref_args($outputs_)?>) {
-    if (index == kLength)
+    if (iter == kLength)
       return false;
 <?  foreach ($inputs_ as $name => $type) { ?>
-    <?=$name?> = (*<?=$name?>_ptr)[index];
+    <?=$name?> = (*<?=$name?>_ptr)[iter];
 <?  } ?>
-    index++;
+<?  if ($produce_index) { ?>
+    index = iter;
+<?  } ?>
+    ++iter;
     return true;
   }
 };
