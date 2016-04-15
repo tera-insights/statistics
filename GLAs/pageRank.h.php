@@ -13,7 +13,7 @@ class <?=$className?>ConstantState {
   int iteration;
 
   // The number of distinct nodes in the graph.
-  int num_nodes;
+  long num_nodes;
 
  public:
   friend class <?=$className?>;
@@ -32,14 +32,15 @@ class <?=$className?>ConstantState {
 }
 
 // This GLA computes the page ranks of a graph given the edge set as inputs. The
-// algorithm uses O(V) time and takes O(I * E) time, where V is the total number
+// algorithm runs with O(V) space and O(I * E) time, where V is the total number
 // of vertices; E, the total number of edges; and I, the number of iterations.
 // The input should be two integers specifying source and target vertices.
 // The output is vertex IDs and their page rank, expressed as a float.
+
 // Template Args:
 // adj: Whether the edge count and page rank of a given vertex should be stored
 //   adjacently. Doing so reduced random lookups but increases update time.
-// hash: Whether the key IDs need to be converted to zero-based indices.
+
 // Resources:
 // armadillo: various data structures
 // algorithm: max
@@ -136,7 +137,6 @@ class <?=$className?> {
         iteration(state.iteration) {
   }
 
-  // Basic dynamic array allocation.
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
     if (iteration == 0) {
       num_nodes = max((long) max(s, t), num_nodes);
@@ -156,14 +156,13 @@ class <?=$className?> {
     }
   }
 
-  // Hashes are merged.
   void AddState(<?=$className?> &other) {
     if (iteration == 0)
       num_nodes = max(num_nodes, other.num_nodes);
   }
 
   // Most computation that happens at the end of each iteration is parallelized
-  // by performed it inside Finalize.
+  // by performing it inside Finalize.
   bool ShouldIterate(ConstantState& state) {
     state.iteration = ++iteration;
 <?  if ($debug > 0) { ?>
