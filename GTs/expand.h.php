@@ -26,7 +26,7 @@ function Expand(array $t_args, array $inputs, array $outputs, array $states)
     grokit_assert($produce_index || $num_outputs == $num_inputs,
                   'Expand: an invalid number of outputs was received.');
 
-    for ($index = 0; $index < $count; $index++)
+    for ($index = 0; $index < $num_outputs; $index++)
         array_set_index($outputs, $index,
                         array_get_index($inputs, $index)->get('type'));
 
