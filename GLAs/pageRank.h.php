@@ -15,12 +15,15 @@ class <?=$className?>ConstantState {
   // The number of distinct nodes in the graph.
   long num_nodes;
 
+  wall_clock timer;
+
  public:
   friend class <?=$className?>;
 
   <?=$className?>ConstantState()
       : iteration(0),
         num_nodes(0) {
+    timer.tic();
   }
 };
 
@@ -135,6 +138,8 @@ class <?=$className?> {
       : constant_state(state),
         num_nodes(state.num_nodes),
         iteration(state.iteration) {
+    auto state_copy = const_cast<<?=$constantState?>&>(state);
+    cout << "Time taken for iteration: " << iteration << ": " << state_copy.timer.toc() << endl;
   }
 
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
@@ -199,6 +204,9 @@ class <?=$className?> {
     long size = (num_nodes - 1) / kBlock + 1;  // num_nodes / kBlock rounded up.
     num_fragments = (iteration == 0) ? 0 : min(size, (long) kMaxFragments);
 <?  if ($debug > 0) { ?>
+    cout << "# nodes: " << num_nodes << endl;
+    cout << "kBlock: " << kBlock << endl;
+    cout << "# fragments: " << size << endl;
     cout << "Returning " << num_fragments << " fragments" << endl;
 <?  } ?>
     return num_fragments;
@@ -206,13 +214,15 @@ class <?=$className?> {
 
   // The fragment is given as a long so that the below formulas don't overflow.
   Iterator* Finalize(long fragment) {
-    int count = num_nodes;
+    long count = num_nodes;
     // The ordering of operations is important. Don't change it.
-    int first = fragment * (count / kBlock) / num_fragments * kBlock;
-    int final = (fragment == num_fragments - 1)
-              ? count - 1
-              : (fragment + 1) * (count / kBlock) / num_fragments * kBlock - 1;
-    // printf("fragment: %d\tfirst: %d\tfinal: %d\n", fragment, first, final);
+    long first = fragment * (count / kBlock) / num_fragments * kBlock;
+    long final = (fragment == num_fragments - 1)
+               ? count - 1
+               : (fragment + 1) * (count / kBlock) / num_fragments * kBlock - 1;
+<?  if ($debug > 0) { ?>
+    printf("Fragment %ld: %ld - %ld\n", fragment, first, final);
+<?  } ?>
     if  (iteration == 2) {
 <?  if ($adj) { ?>
       info.row(0).subvec(first, final).fill(1);

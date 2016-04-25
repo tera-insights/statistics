@@ -13,12 +13,15 @@ class <?=$className?>ConstantState {
   // The number of distinct nodes in the graph.
   long num_nodes;
 
+  arma::wall_clock timer;
+
  public:
   friend class <?=$className?>;
 
   <?=$className?>ConstantState()
       : iteration(0),
         num_nodes(0) {
+    timer.tic();
   }
 };
 
@@ -118,6 +121,8 @@ class <?=$className?> {
         num_nodes(state.num_nodes),
         iteration(state.iteration),
         finished(true) {
+    auto state_copy = const_cast<<?=$constantState?>&>(state);
+    cout << "Time taken for iteration: " << iteration << ": " << state_copy.timer.toc() << endl;
   }
 
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
@@ -160,7 +165,7 @@ class <?=$className?> {
       return true;
     } else {
 <?  if ($debug > 0) { ?>
-      cout << "distance: " << distance.t() << endl;
+      // cout << "distance: " << distance.t() << endl;
 <?  } ?>
       return !finished;
     }
