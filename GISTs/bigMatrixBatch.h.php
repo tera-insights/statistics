@@ -6,7 +6,7 @@ function Big_Matrix_Batch($t_args, $outputs, $states)
 
     $numStates = count($states);
     grokit_assert(in_array($numStates, [1, 2]),
-                  "RFB: Illegal number of states: $numStates.");
+                  "BMB: Illegal number of states: $numStates.");
 
     $states_ = array_values($states);
     $type = array_get_index($states_[0]->inputs(), 0)->get('type');
