@@ -26,13 +26,13 @@ function Expand(array $t_args, array $inputs, array $outputs, array $states)
     grokit_assert($produce_index || $num_outputs == $num_inputs,
                   'Expand: an invalid number of outputs was received.');
 
-    for ($index = 0; $index < $num_outputs; $index++)
+    for ($index = 0; $index < $num_inputs; $index++)
         array_set_index($outputs, $index,
                         array_get_index($inputs, $index)->get('type'));
 
     $output_keys = array_keys($inputs_);
     if ($produce_index) {
-        array_set_index($outputs, $num_outputs, lookupType('int'));
+        array_set_index($outputs, $num_outputs - 1, lookupType('int'));
         $output_keys[] = 'index';
     }
     $outputs_ = array_combine($output_keys, $outputs);
