@@ -24,7 +24,8 @@ function Fixed_Vector($t_args) {
 
     foreach ($inputs as $key => &$input) {
         grokit_assert(   is_datatype($input)
-                      && ($input->is('numeric') || $input->is('categorical') || $input->is('matrix')),
+                      && (   $input->is('numeric') || $input->is('categorical')
+                          || $input->is('matrix')  || $input->is('array')),
                       "MakeVector: input [$key] must be a numeric type.");
         $input = $input->lookup();
     };
