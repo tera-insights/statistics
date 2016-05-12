@@ -8,17 +8,12 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     // Setting output types.
     $outputs = array_combine(array_keys($outputs), $inputs);
 
-    // The dimension of the data, i.e. how many elements are in each item.
-    $dimension = count($inputs);
-
     // Initialization of local variables from template arguments
     $coefficient = get_default($t_args, 'coefficient', 22);
     $sampleSize = $t_args['size'];
 
-    // Array for generating inline C++ code;
-    $codeArray = array_combine(array_keys($outputs), range(0, $dimension - 1));
-
-    $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept'];
+    $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept'
+                     'algorithm'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = ['armadillo'];
@@ -27,17 +22,12 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     $result_type  = ['multi'];
 ?>
 
-
-using namespace std;
-
-class <?=$className?>;
-
 class <?=$className?> {
  public:
   using Tuple = std::tuple<<?=typed($inputs)?>>;
 
   // The total amount of entries to be returned by the sampling.
-  const double kSampleSize = <?=$sampleSize?>;
+  const double kSize = <?=$sampleSize?>;
 
   // The coefficient for the threshold at which we should switch algorithms to
   // decide skip amount. The threshold is this coefficient multiplied by the
@@ -46,11 +36,12 @@ class <?=$className?> {
   const double kThresholdCoefficient = <?=$coefficient?>;
 
   // The value at which we should switch algorithms to decide skip amount.
-  const double kThreshold = kSampleSize * kThresholdCoefficient;
+  const double kThreshold = kSize * kThresholdCoefficient;
 
+ private:
   // An STL vector containing the tuples of data that represent the sample. Due
   // to the small size of the sample, this can be directly stored in memory.
-  vector<Tuple> sample;
+  std::vector<Tuple> sample;
 
   // The tuple that contains the current data whose elements are manually set.
   // This is a member variable as opposed to a local one to avoid allocating
@@ -71,8 +62,7 @@ class <?=$className?> {
   // instantiated in all relevant function calls.
   double number_outside_reservoir;
 
-  // Various variables used to generate toSkip. Currently unused due to local
-  // variable being instantiated in all relevant function calls.
+  // Various variables used to generate toSkip.
   double V, U, R, lhs, rhs, y, quot;
 
   // A counter variable representing how many more items we should skip.
@@ -106,18 +96,17 @@ class <?=$className?> {
  public:
   // Constructor, nothing of note.
   <?=$className?>()
-      : sample(kSampleSize),
+      : sample(kSize),
         count(0),
         return_counter(0),
         P(-1),
         standard_uniform_distribution(0.0, 1.0),
-        index_distribution(0, kSampleSize - 1),
+        index_distribution(0, kSize - 1),
         generator(random_device()()),
-        W(exp(log(1 - standard_uniform_distribution(generator)) / kSampleSize)) {
-  }
+        W(exp(log(1 - standard_uniform_distribution(generator)) / kSize)) {}
 
   // Simple function to insert a chosen tuple randomly into the resovoir.
-  void AddCurrentItem(Tuple x) {
+  void AddCurrentItem(const Tuple& x) {
     long random_index = index_distribution(generator);
     sample[random_index] = x;
   }
@@ -129,7 +118,7 @@ class <?=$className?> {
   // not to a noticeable degree.
   void CalculateToSkipSimple() {
     double dummy_count = count + 1;
-    number_outside_reservoir = dummy_count - kSampleSize;
+    number_outside_reservoir = dummy_count - kSize;
     V = 1.0 - standard_uniform_distribution(generator);
     quot = (double) number_outside_reservoir / (double) dummy_count;
     P = 0;  // toSkip should already be 0, merely a safety check.
@@ -149,13 +138,12 @@ class <?=$className?> {
   void CalculateToSkipComplex() {
     R  = count * (W - 1.0);
     do {
-      double term = count - kSampleSize + 1;
+      double term = count - kSize + 1;
       U = 1.0 - standard_uniform_distribution(generator);
       P = floor(R);
       // The left hand side of the inequality described by Vitter
-      lhs = exp(
-          log((U * pow(((count + 1) /  term), 2) * (term + P)) / (count + R))
-          / kSampleSize);
+      lhs = (U * std::pow(((count + 1) /  term), 2) * (term + P)) / (count + R);
+      lhs = exp(log(lhs) / kSize);
       // The right hand side of the inequality described by Vitter
       rhs = (((count + R) / (term + P)) * term) / count;
       if (lhs < rhs) {
@@ -165,11 +153,11 @@ class <?=$className?> {
       y  = (((U * (count + 1)) / term) * (count + P + 1)) / (count + U);
       // used for calculating the falling factorial in a loop
       double denominator, numerator_limit;
-      if (kSampleSize < P) {
+      if (kSize < P) {
         denominator = count;
         numerator_limit = term + P;
       } else {
-        denominator = count - kSampleSize + P;
+        denominator = count - kSize + P;
         numerator_limit = count + 1;
       }
 
@@ -178,8 +166,8 @@ class <?=$className?> {
         y *= numerator / denominator;
         denominator --;
       }
-      W = exp(-log(standard_uniform_distribution(generator)) / kSampleSize);
-    } while (exp(log(y) / kSampleSize) > (count + R) / count);
+      W = exp(-log(standard_uniform_distribution(generator)) / kSize);
+    } while (exp(log(y) / kSize) > (count + R) / count);
   }
 
   // Adds an item in the typical method of a GLA. Due to the structure of a GLA,
@@ -188,13 +176,13 @@ class <?=$className?> {
   // read them in; this does not result in the reduction of IO time described by
   // Vitter, but this is not an issue as IO time is extremlely fast in Grokit.
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
-    if (count < kSampleSize) {
+    if (count < kSize) {
       // State: initialization of the reservoir.
 <?  foreach (array_keys($inputs) as $counter => $name) { ?>
       get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       sample[count] = item;
-      if (count == kSampleSize - 1)
+      if (count == kSize - 1)
         CalculateToSkipSimple();
     } else if (P > 0) {
       // State: skip.
@@ -210,7 +198,7 @@ class <?=$className?> {
         CalculateToSkipSimple();
       }
       else {
-        // Otherwise, it is more efficient to use the more complex algorithm.
+        // Otherwise, it is more efficient to use the complex algorithm.
         CalculateToSkipComplex();
       }
     }
@@ -222,19 +210,17 @@ class <?=$className?> {
   // sample of the other state is sampled and replaces the sample of the current
   // state. This is mathematically correct due to the uniform nature of both
   // samples and the exact method involved.
-  void AddState(<?=$className?>& other)  {
+  void AddState(<?=$className?>& other) {
     // A counter for which member of the current state's sample is replaced
     long replace_counter = 0;
     // The probability that a member of the other's sample is kept.
     double probability = other.count / (count + other.count);
     // Iterate over the other's sample
-    for(long counter = 0; counter < kSampleSize; counter ++) {
+    for (long counter = 0; counter < kSize; counter ++) {
       double random_variable = standard_uniform_distribution(generator);
-      if (random_variable <= probability) {
+      if (random_variable <= probability)
         // The corresponding element of other's sample is kept.
-        sample[replace_counter] = other.sample[counter];
-        replace_counter ++;
-      }
+        sample[replace_counter++] = other.sample[counter];
     }
   }
 
@@ -248,32 +234,29 @@ class <?=$className?> {
   // A typical result function for a GLA of type multi. The arguments are
   // references and are then changed in the body.
   bool GetNextResult(<?=typed_ref_args($outputs)?>) {
-    if (return_counter >= min(kSampleSize, count))
+    if (return_counter >= min(kSize, count))
       return false;
 <?  foreach (array_keys($outputs) as $counter => $name) { ?>
-    <?=$name?> = get<<?=$counter?>>(sample[return_counter]);
+    <?=$name?> = std::get<<?=$counter?>>(sample[return_counter]);
 <?  } ?>
     return_counter++;
     return true;
   }
 
   // This function is intended to be called when passing this GLA as a state.
-  Tuple GetSample(long counter) {
-    if (counter < kSampleSize)
+  Tuple& GetSample(long counter) {
+    if (counter < kSize)
       return sample[counter];
     else
       throw std::invalid_argument("Sample size exceeded number of rows.");
   }
 
-  inline const vector<Tuple>& GetTuples() {
+  inline const std::vector<Tuple>& GetTuples() {
     return sample;
   }
 
-  int GetSize() {
-    if (count < kSampleSize)
-      return count;
-    else
-      return kSampleSize;
+  std::size_t GetSize() {
+    return std::min(count, kSize);
   }
 };
 
