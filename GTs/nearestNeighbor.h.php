@@ -60,7 +60,7 @@ function Nearest_Neighbor(array $t_args, array $inputs, array $outputs, array $s
     array_set_index($outputs, 0, $state->get('key')->lookup());
 
     // Class name is randomly generated.
-    $className = generate_name("NN");
+    $className = generate_name('NN');
 
     // Initialization of local variables from template arguments
     $normal = get_default($t_args, 'normalization', false);
@@ -81,7 +81,7 @@ using namespace arma;
 class <?=$className?>;
 
 <?  $constantState = lookupResource(
-        "statistics::Nearest_Neighbor_Constant_State",
+        'statistics::Nearest_Neighbor_Constant_State',
         ['className' => $className, 'states' => $states, 'normal' => $normal]
     ); ?>
 
