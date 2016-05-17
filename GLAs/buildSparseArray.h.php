@@ -19,7 +19,7 @@ function Build_Sparse_Array(array $t_args, array $inputs, array $outputs)
     $size = $inputs_['vector']->get('size');
     $type = $inputs_['vector']->get('type');
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $scale = get_default($t_args, 'scale',  2);
     $width = get_default($t_args, 'length', 100);
     $type  = get_default($t_args, 'type',   $type);

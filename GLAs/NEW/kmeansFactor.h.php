@@ -59,7 +59,7 @@ function K_Means(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated
     $className = generate_name("KMC");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     $numClusters   = $t_args['number.clusters'];
     $debug         = $t_args['debug'];

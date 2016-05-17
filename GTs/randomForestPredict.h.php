@@ -1,7 +1,7 @@
 <?
 function Random_Forest_Predict_Constant_State($t_args)
 {
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $className = $t_args['className'];
     $states    = $t_args['states'];
     $file      = $t_args['file'];
@@ -56,7 +56,7 @@ function Random_Forest_Predict($t_args, $inputs, $outputs, $states)
     // Class name is randomly generated.
     $className = generate_name("RFP");
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $file  = get_default($t_args, 'file',   false);
     $scale = get_default($t_args, 'scale',  2);
     $width = get_default($t_args, 'length', 100);

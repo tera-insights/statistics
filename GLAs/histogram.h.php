@@ -4,7 +4,7 @@ function Histogram(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated.
     $className = generate_name("Hist");
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $length = $t_args['length'];
     $normalize = get_default($t_args, 'normalize', false);
     $p = get_default($t_args, 'p', 1);

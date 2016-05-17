@@ -1,7 +1,7 @@
 <?
 function Decision_Tree_Constant_State(array $t_args)
 {
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $className    = $t_args['className'];
     $domains      = $t_args['domains'];
     $splitType    = get_default($t_args, 'split', 'anova');

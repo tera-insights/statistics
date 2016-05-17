@@ -164,7 +164,7 @@ function G_Means(array $t_args, array $inputs, array $outputs)
     // The dimension of the data, i.e. how many elements are in each item.
     $dimension = count($inputs);
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     // The parameter p for the Minkowski distance metric used. It is not
     // technically a metric is p < 1 but this is allowable.

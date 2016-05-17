@@ -11,7 +11,7 @@ function Simple_Sampling(array $t_args, array $inputs, array $outputs)
     // The dimension of the data, i.e. how many elements are in each item.
     $dimension = count($inputs);
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $sampleSize = $t_args['size'];
 
     // Array for generating inline C++ code;

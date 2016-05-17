@@ -53,7 +53,7 @@ function Naive_Bayes_Classifier(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated
     $className = generate_name("NBC");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     // This specifies how many standard deviations wide the histogram is in each
     // direction.

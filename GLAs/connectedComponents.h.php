@@ -52,7 +52,7 @@ function Connected_Components($t_args, $inputs, $outputs)
     $inputs_ = array_combine(['s', 't'], $inputs);
     $vertex = $inputs_['s'];
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $debug = get_default($t_args, 'debug', 1);
 
     // Construction of outputs.

@@ -50,7 +50,7 @@ function GLM_Predict(array $t_args, array $inputs, array $outputs, array $states
     // Class name is randomly generated.
     $className = generate_name("GLM_Predict");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     // This is string that is either a variable name or an expression in C++;
     $response = "({$t_args['response']})";

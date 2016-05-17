@@ -53,7 +53,7 @@ function Shortest_Path($t_args, $inputs, $outputs)
     $inputs_ = array_combine(['s', 't', 'weight', 'init'], $inputs);
     $vertex = $inputs_['s'];
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $debug = get_default($t_args, 'debug', 1);
 
     // Construction of outputs.

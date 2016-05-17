@@ -10,7 +10,7 @@ function Random_Forest_Batch($t_args, $outputs, $states)
 
     $tuple = array_get_index($states_['predicting']->input(), 1);
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $file          = get_default($t_args, 'file',           false);
     $maxDepth      = get_default($t_args, 'max.depth',      25);
     $sampleCount   = get_default($t_args, 'min.sample',     100);

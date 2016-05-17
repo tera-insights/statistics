@@ -7,7 +7,7 @@ function Random_Forest(array $t_args, array $inputs, array $outputs)
     // Initializiation of argument names.
     $inputs_ = array_combine(['x', 'y'], $inputs);
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $scale = get_default($t_args, 'scale', 2);
     $width = get_default($t_args, 'length', 100);
 

@@ -9,7 +9,7 @@ function Line_Chart_Matrix(array $t_args, array $inputs, array $outputs)
     $index = array_keys($inputs)[1];  // Name of the input representing time.
     $value = array_keys($inputs)[2];  // Name of the input representing value.
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $length = $t_args['length'];  // Number of points in the graph per key.
 
     grokit_assert($inputs[$key]->is("categorical"),

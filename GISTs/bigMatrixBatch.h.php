@@ -15,7 +15,7 @@ function Big_Matrix_Batch($t_args, $outputs, $states)
 
     $single = count($states) == 1;
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $block = get_default($t_args, 'block',  40);
     $diag  = get_default($t_args, 'diag', true);
 

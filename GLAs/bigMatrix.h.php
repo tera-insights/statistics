@@ -27,7 +27,7 @@ function Big_Matrix($t_args, $inputs, $outputs)
     $size = $inputs_['vector']->get('size');
     $type = $inputs_['vector']->get('type');
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $block = get_default($t_args, 'block',  40);
     $scale = get_default($t_args, 'scale',  2);
     $width = get_default($t_args, 'length', 100);

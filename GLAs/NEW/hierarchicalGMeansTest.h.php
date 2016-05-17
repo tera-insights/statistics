@@ -166,7 +166,7 @@ function G_Means(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated
     $className = generate_name("HGM");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     // The parameter p for the Minkowski distance metric used. It is not
     // technically a metric is p < 1 but this is allowable.

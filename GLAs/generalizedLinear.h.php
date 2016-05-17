@@ -46,7 +46,7 @@ function GLM(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated.
     $className = generate_name("GLM");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     // This is string that is either a variable name or an expression in C++;
     $response = "({$t_args['response']})";

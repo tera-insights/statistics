@@ -4,7 +4,7 @@ function Line_Chart(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated.
     $className = generate_name('LineC');
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $length = $t_args['length']; // Number of points in the graph.
     $normalize = get_default($t_args, 'normalize', false); // Should chart be normalized.
     $p = get_default($t_args, 'p', 2);

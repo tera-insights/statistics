@@ -24,7 +24,7 @@ function Pregel($t_args, $inputs, $outputs, $states)
     // Class name is randomly generated.
     $className = generate_name('Pregel');
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $directed = get_default($t_args, 'directed', true);
     $debug = get_default($t_args, 'debug', 1);
     $prop = $t_args['properties'];
@@ -282,7 +282,7 @@ function Pregel_Setup($t_args, $inputs, $outputs) {
     // Class name is randomly generated.
     $className = generate_name('PregelState');
 
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $atts = $t_args['attributes'];
     $debug = get_default($t_args, 'debug', 1);
     grokit_assert(is_array($atts), 'attributes should be a string array');

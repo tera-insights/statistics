@@ -51,7 +51,7 @@ function K_Means(array $t_args, array $inputs, array $outputs)
     // Setting output type
     $outputs = ['_output' => lookupType('JSON')];
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
 
     $numberClusters = $t_args['number.clusters'];
     $debug          = $t_args['debug'];

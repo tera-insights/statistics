@@ -1,7 +1,7 @@
 <?
 function Nearest_Neighbor_Constant_State(array $t_args)
 {
-    // Initialization of local variables from template arguments.
+    // Processing of template arguments.
     $className = $t_args['className'];
     $states    = $t_args['states'];
     $normal    = $t_args['normal'];
@@ -62,7 +62,7 @@ function Nearest_Neighbor(array $t_args, array $inputs, array $outputs, array $s
     // Class name is randomly generated.
     $className = generate_name('NN');
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $normal = get_default($t_args, 'normalization', false);
 
     // Initializiation of argument names.

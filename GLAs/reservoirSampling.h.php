@@ -8,7 +8,7 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     // Setting output types.
     $outputs = array_combine(array_keys($outputs), $inputs);
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $coefficient = get_default($t_args, 'coefficient', 22);
     $sampleSize = $t_args['size'];
 

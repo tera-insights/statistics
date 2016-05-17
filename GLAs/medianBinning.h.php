@@ -90,7 +90,7 @@ function Median_Binning(array $t_args, array $inputs, array $outputs)
     // Class name is randomly generated
     $className = generate_name("KMC");
 
-    // Initialization of local variables from template arguments
+    // Processing of template arguments
     $numBins = $t_args['number.bins'];
     $sortThreshold = $t_args['sort.threshold'];
     $epsilon = get_default($t_args, 'epsilon', 0.0001);
