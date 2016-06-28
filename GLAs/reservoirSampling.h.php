@@ -12,7 +12,7 @@ function Reservoir_Sampling(array $t_args, array $inputs, array $outputs)
     $coefficient = get_default($t_args, 'coefficient', 22);
     $sampleSize = $t_args['size'];
 
-    $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept'
+    $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
                      'algorithm'];
     $user_headers = [];
     $lib_headers  = [];
