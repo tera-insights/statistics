@@ -43,13 +43,21 @@ typedef arma::Mat<<?=$type?>>::fixed<<?=$nrow?>, <?=$ncol?>> <?=$className?>;
 <?  ob_start(); ?>
 
 inline void ToJson(const @type src, Json::Value& dest) {
+  FATALIF(src.n_elem > 4294967295L  // Maximum value for a uint32_t.
+          "Error: attempt to serialize matrix with more than 2^31 - 1 elements")
+
   dest["__type__"] = "matrix";
   dest["n_rows"] = src.n_rows;
   dest["n_cols"] = src.n_cols;
   Json::Value content(Json::arrayValue);
-  for (int i = 0; i < src.n_rows; i++)
-    for (int j = 0; j < src.n_cols; j++)
-	    content[i * src.n_cols + j] = src(i, j);
+  for (arma::uword i = 0; i != src.n_rows; i++) {
+    for (arma::uword j = 0; j != src.n_cols; j++) {
+      // Force index to be  Json::ArrayIndex to prevent the compiler from
+      // getting confused at to which operator[] to use on content.
+      Json::ArrayIndex position = (i * src.n_cols) + j;
+      content[position] = src(i, j);
+    }
+  }
   dest["data"] = content;
 }
 
