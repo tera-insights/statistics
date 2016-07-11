@@ -102,7 +102,7 @@ class <?=$className?> {
         P(-1),
         standard_uniform_distribution(0.0, 1.0),
         index_distribution(0, kSize - 1),
-        generator(random_device()()),
+        generator(std::random_device()()),
         W(exp(log(1 - standard_uniform_distribution(generator)) / kSize)) {}
 
   // Simple function to insert a chosen tuple randomly into the resovoir.
@@ -179,7 +179,7 @@ class <?=$className?> {
     if (count < kSize) {
       // State: initialization of the reservoir.
 <?  foreach (array_keys($inputs) as $counter => $name) { ?>
-      get<<?=$counter?>>(item) = <?=$name?>;
+      std::get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       sample[count] = item;
       if (count == kSize - 1)
@@ -190,7 +190,7 @@ class <?=$className?> {
     } else {
       // State : inserting item into the reservoir and recalculating P.
 <?  foreach (array_keys($inputs) as $counter => $name) { ?>
-      get<<?=$counter?>>(item) = <?=$name?>;
+      std::get<<?=$counter?>>(item) = <?=$name?>;
 <?  } ?>
       AddCurrentItem(item);
       if (count < kThreshold) {
@@ -234,7 +234,7 @@ class <?=$className?> {
   // A typical result function for a GLA of type multi. The arguments are
   // references and are then changed in the body.
   bool GetNextResult(<?=typed_ref_args($outputs)?>) {
-    if (return_counter >= min(kSize, count))
+    if (return_counter >= std::min(kSize, count))
       return false;
 <?  foreach (array_keys($outputs) as $counter => $name) { ?>
     <?=$name?> = std::get<<?=$counter?>>(sample[return_counter]);
