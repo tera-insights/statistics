@@ -42,7 +42,7 @@ function Big_Matrix($t_args, $inputs, $outputs)
 
     // Construction of outputs.
     $key = $inputs_['key'];
-    $outputs_ = ['x' => $key, 'y' => $key, 'val' => $type];
+    $outputs_ = ['x' => $key, 'y' => $key, 'val' => lookupType('double')];
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
     $sys_headers  = ['armadillo', 'limits'];
@@ -86,7 +86,7 @@ class <?=$className?> {
     int col_shift, row_shift;
 
     // The data associated with this fragment.
-    Mat<Type> block;
+    mat block;
 
     // The number of columns and rows in this fragment.
     int n_cols, n_rows;
@@ -97,7 +97,7 @@ class <?=$className?> {
     // Used to iterate over this fragment during output.
     int col, row;
 
-    Iterator(int col_shift, int row_shift, bool diagonal, Mat<Type>&& block)
+    Iterator(int col_shift, int row_shift, bool diagonal, mat&& block)
         : col_shift(col_shift),
           row_shift(row_shift),
           block(block),
@@ -116,16 +116,16 @@ class <?=$className?> {
  private:
   // The data matrix being constructed item by item. The width of this matrix
   // is increased when necessary as per a dynamic array.
-  Mat<Type> data;
+  mat data;
 
   // The set of keys processed whose indices correspond to the rows in data.
   std::vector<Key> keys;
 
   // The variance and the mean for each item.
-  Row<Type> stddevs, means;
+  arma::rowvec stddevs, means;
 
   // The number of rows processed by this state.
-  int count;
+  long count;
 
  public:
   <?=$className?>()
@@ -137,7 +137,7 @@ class <?=$className?> {
   void AddItem(<?=const_typed_ref_args($inputs_)?>) {
     if (count == data.n_cols)
       data.resize(kHeight, kScale * count);
-    data.col(count) = Col<Type>(vector.data(), kHeight);
+    data.col(count) = conv_to<colvec>::from(Col<Type>(vector.data(), kHeight));
     keys.push_back(key);
     count++;
   }
@@ -156,8 +156,21 @@ class <?=$className?> {
     data.resize(kHeight, count);
 
     // Computing the relevant statistics for each item.
-    stddevs = stddev(data, 1);
-    means = mean(data);
+    stddevs = arma::stddev(data, 1);
+    means = arma::mean(data);
+
+    arma::uvec invalid = arma::find(stddevs == 0);
+    std::cout << "Number of 0 stddevs: " << invalid.n_elem << std::endl;
+    if (invalid.n_elem > 0) {
+      invalid = invalid.subvec(0, std::min(5, (int) invalid.n_elem));
+      char buffer [100];
+      std::cout << "Keys for illegal vectors:" << std::endl;
+      for (auto i : invalid) {
+        keys[i].ToString(buffer);
+        std::cout << " " << buffer;
+      }
+      std::cout << std::endl;
+    }
 
     // The number of blocks is computed. For a full description of the blocking
     // scheme, refer to the top of the page.
@@ -168,31 +181,31 @@ class <?=$className?> {
 
   Iterator* Finalize(int fragment) {
     // The co-ordinates of the current block in the blocking grid are computed.
-    int block_col = (sqrt(1 + 8 * fragment) - 1) / 2;
-    int block_row = fragment - block_col * (block_col + 1) / 2;
+    long block_col = (sqrt(1 + 8 * fragment) - 1) / 2;
+    long block_row = fragment - block_col * (block_col + 1) / 2;
 
     // The span of this block with regard to the covariance matrix.
     // Both intervals are closed on the left and open on the right.
-    int first_col = kBlock * block_col;
-    int first_row = kBlock * block_row;
-    int final_col = std::min(count, first_col + kBlock);
-    int final_row = std::min(count, first_row + kBlock);
+    long first_col = kBlock * block_col;
+    long first_row = kBlock * block_row;
+    long final_col = std::min(count, first_col + kBlock);
+    long final_row = std::min(count, first_row + kBlock);
 
     // The dimension of the rectangular block.
-    int num_cols = final_col - first_col;
-    int num_rows = final_row - first_row;
+    long num_cols = final_col - first_col;
+    long num_rows = final_row - first_row;
 
     // The block, i.e. the covariance submatrix, is computed.
-    Mat<Type> col_items = data.cols(first_col, final_col - 1);
-    Mat<Type> row_items = data.cols(first_row, final_row - 1).t();
+    mat col_items = data.cols(first_col, final_col - 1);
+    mat row_items = data.cols(first_row, final_row - 1).t();
 
-    Row<Type> col_means =   means.subvec(first_col, final_col - 1);
-    Col<Type> row_means =   means.subvec(first_row, final_row - 1).t();
-    Row<Type> col_stds  = stddevs.subvec(first_col, final_col - 1);
-    Col<Type> row_stds  = stddevs.subvec(first_row, final_row - 1).t();
+    rowvec col_means =   means.subvec(first_col, final_col - 1);
+    colvec row_means =   means.subvec(first_row, final_row - 1).t();
+    rowvec col_stds  = stddevs.subvec(first_col, final_col - 1);
+    colvec row_stds  = stddevs.subvec(first_row, final_row - 1).t();
 
-    Mat<Type> block = (row_items * col_items / kHeight - row_means * col_means)
-                    / (row_stds * col_stds);
+    mat block = (row_items * col_items / kHeight - row_means * col_means)
+              / (row_stds * col_stds);
 
     // If the block lies on the main diagonal, not all of its elements are used.
     // Because the co-variance matrix is symmetric, only the upper triangular
