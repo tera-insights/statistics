@@ -1,5 +1,5 @@
-// http://www.stat.cmu.edu/~ryantibs/papers/median.pdf
 <?php
+// http://www.stat.cmu.edu/~ryantibs/papers/median.pdf
 function Median_Binning_Constant_State(array $t_args)
 {
     // Grabbing variables from $t_args

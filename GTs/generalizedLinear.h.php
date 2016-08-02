@@ -1,6 +1,5 @@
-// http://data.princeton.edu/wws509/notes/a2.pdf
 <?
-require_once "grokit_base.php";
+// http://data.princeton.edu/wws509/notes/a2.pdf
 
 function GLM_Predict_Constant_State(array $t_args)
 {

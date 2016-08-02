@@ -1,7 +1,3 @@
-/**
- * A variable size matrix from Armadillo.
- */
-
 <?
 
 function Variable_Matrix(array $t_args) {
