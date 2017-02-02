@@ -166,7 +166,7 @@ class <?=$className?> {
       char buffer [100];
       std::cout << "Keys for illegal vectors:" << std::endl;
       for (auto i : invalid) {
-        keys[i].ToString(buffer);
+        keys[i].ToString();
         std::cout << " " << buffer;
       }
       std::cout << std::endl;
