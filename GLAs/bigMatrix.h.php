@@ -33,6 +33,7 @@ function Big_Matrix($t_args, $inputs, $outputs)
     $width = get_default($t_args, 'length', 100);
     $type  = get_default($t_args, 'type',   $type);
     $diag  = get_default($t_args, 'diag',   true);
+    $debug = get_default($t_args, 'debug',  0);
 
     // diag is converted to avoid PHP boolean printing issues.
     $diag = intval($diag);
@@ -159,18 +160,20 @@ class <?=$className?> {
     stddevs = arma::stddev(data, 1);
     means = arma::mean(data);
 
+<?php if ($debug > 0) { ?>
     arma::uvec invalid = arma::find(stddevs == 0);
-    std::cout << "Number of 0 stddevs: " << invalid.n_elem << std::endl;
+    std::cerr << "Number of 0 stddevs: " << invalid.n_elem << std::endl;
     if (invalid.n_elem > 0) {
       invalid = invalid.subvec(0, std::min(5, (int) invalid.n_elem));
-      char buffer [100];
-      std::cout << "Keys for illegal vectors:" << std::endl;
+      char buffer [1024];
+      std::cerr << "Keys for illegal vectors:" << std::endl;
       for (auto i : invalid) {
-        keys[i].ToString();
-        std::cout << " " << buffer;
+        ToString(keys[i], buffer);
+        std::cerr << " " << buffer;
       }
-      std::cout << std::endl;
+      std::cerr << std::endl;
     }
+<?php } // if debug > 0 ?>
 
     // The number of blocks is computed. For a full description of the blocking
     // scheme, refer to the top of the page.
