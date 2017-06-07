@@ -34,6 +34,7 @@ function Big_Matrix($t_args, $inputs, $outputs)
     $type  = get_default($t_args, 'type',   $type);
     $diag  = get_default($t_args, 'diag',   true);
     $debug = get_default($t_args, 'debug',  0);
+    $measures = get_default($t_args, 'measures', ['correlation']);
 
     // diag is converted to avoid PHP boolean printing issues.
     $diag = intval($diag);
@@ -43,7 +44,10 @@ function Big_Matrix($t_args, $inputs, $outputs)
 
     // Construction of outputs.
     $key = $inputs_['key'];
-    $outputs_ = ['x' => $key, 'y' => $key, 'val' => lookupType('double')];
+    $outputs_ = ['x' => $key, 'y' => $key]; 
+    foreach( $measures as $value){
+      $outputs_[$value] = lookupType('double');
+    }
     $outputs = array_combine(array_keys($outputs), $outputs_);
 
     $sys_headers  = ['armadillo', 'limits'];
@@ -86,7 +90,7 @@ class <?=$className?> {
     // The indices of the big matrix where the upper left of this fragment is.
     int col_shift, row_shift;
 
-    // The data associated with this fragment.
+    // The data associated with this fragment. This is just the inner product matrix
     mat block;
 
     // The number of columns and rows in this fragment.
@@ -98,7 +102,8 @@ class <?=$className?> {
     // Used to iterate over this fragment during output.
     int col, row;
 
-    Iterator(int col_shift, int row_shift, bool diagonal, mat&& block)
+    Iterator(int col_shift, int row_shift, bool diagonal, 
+             mat&& block)
         : col_shift(col_shift),
           row_shift(row_shift),
           block(block),
@@ -123,7 +128,16 @@ class <?=$className?> {
   std::vector<Key> keys;
 
   // The variance and the mean for each item.
-  arma::rowvec stddevs, means;
+  
+<?  if (in_array("correlation", $measures) || in_array("corvariance", $measures)) { ?>
+  arma::rowvec means;
+<?  } ?>
+<?  if (in_array("covariance", $measures)){ ?>
+  arma::rowvec stdevs;
+<?  } ?>
+<?  if (in_array("distance", $measures)){ ?>
+  arma::rowvec norms;
+<?  } ?>
 
   // The number of rows processed by this state.
   long count;
@@ -157,8 +171,16 @@ class <?=$className?> {
     data.resize(kHeight, count);
 
     // Computing the relevant statistics for each item.
-    stddevs = arma::stddev(data, 1);
+<?  if (in_array("correlation", $measures) || in_array("corvariance", $measures)) { ?>
     means = arma::mean(data);
+<?  } ?>
+<?  if (in_array("covariance", $measures)){ ?>
+    stddevs = arma::stddev(data, 1);
+<?  } ?>
+<?  if (in_array("distance", $measures)){ ?>
+    norms = arma::norm(data, 2);
+<?  } ?>
+
 
 <?php if ($debug > 0) { ?>
     arma::uvec invalid = arma::find(stddevs == 0);
@@ -201,14 +223,7 @@ class <?=$className?> {
     // The block, i.e. the covariance submatrix, is computed.
     mat col_items = data.cols(first_col, final_col - 1);
     mat row_items = data.cols(first_row, final_row - 1).t();
-
-    rowvec col_means =   means.subvec(first_col, final_col - 1);
-    colvec row_means =   means.subvec(first_row, final_row - 1).t();
-    rowvec col_stds  = stddevs.subvec(first_col, final_col - 1);
-    colvec row_stds  = stddevs.subvec(first_row, final_row - 1).t();
-
-    mat block = (row_items * col_items / kHeight - row_means * col_means)
-              / (row_stds * col_stds);
+    mat block = row_items * col_items;
 
     // If the block lies on the main diagonal, not all of its elements are used.
     // Because the co-variance matrix is symmetric, only the upper triangular
@@ -223,7 +238,35 @@ class <?=$className?> {
       return false;
     x = keys[it->row + it->row_shift];
     y = keys[it->col + it->col_shift];
-    val = it->block(it->row, it->col);
+
+    // Pull the dot product from the block
+    auto dProd = it->block(it->row, it->col);
+
+    // Compute the element marginals
+<?  if (in_array("correlation", $measures) || in_array("corvariance", $measures) ){ ?>
+    auto row_mean = means[it->row + it->row_shift];
+    auto col_mean = means[it->col + it->col_shift];
+<?  } ?>
+<?  if (in_array("covariance", $measures)){ ?>
+    auto row_std = stdevs[it->row + it->row_shift];
+    auto col_std = stdevs[it->col + it->col_shift];
+<?  } ?>
+<?  if (in_array("distance", $measures)){ ?>
+    auto row_norm = norms[it->row + it->row_shift];
+    auto col_norm = norms[it->col + it->col_shift];
+<?  } ?>
+
+<?  if (in_array("correlation", $measures)){ ?>
+    correlation = (dProd / kHeight - row_mean * col_mean)
+              / (row_std * col_std);
+<?  } ?>
+<?  if (in_array("covariance", $measures)){ ?>
+    covariance = (dProd / kHeight - row_means * col_means);
+<?  } ?>
+<?  if (in_array("distance", $measures)){ ?>
+    distance = (row_norm + col_norm - 2*dProd);
+<?  } ?>
+
 <?  if ($diag) { ?>
     if ((it->diagonal && it->row == it->col) || it->row == it->n_rows - 1) {
 <?  } else { ?>
