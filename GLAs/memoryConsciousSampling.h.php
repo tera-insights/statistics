@@ -38,6 +38,7 @@ class <?=$className?> {
   const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
   double samplingRate = <?=$initialSamplingRate?>;
   const double reductionRate = <?=$reductionRate?>;
+  const bsl::string key_separator = "|";
 
   // The index used to iterate during GetNextResult;
   double return_counter;
@@ -77,9 +78,22 @@ class <?=$className?> {
   std::string get_group_key(<?=const_typed_ref_args($inputs)?>) {
     std::stringstream group_key_stream;
 <?  foreach (array_keys($inputs) as $counter => $name) { ?>
-      group_key << <?$name?>;
+      group_key << key_separator << <?=$name?>;
 <?  } ?>
     return group_key_stream.str();
+  }
+
+  // `key` as created by `get_group_key`
+  std::vector<std::string> key_to_grouping_attributes(std::string key) {
+    std::vector<std::string> result;
+    while (i != std::string::npos) {
+      int next_index = key.substr(i).find(key_separator);
+      std::string token = key.substr(i, next_index);
+      result.push_back(token);
+      i = next_index;
+
+    }
+    return result;
   }
 
   void resampleMap() {
@@ -108,6 +122,7 @@ class <?=$className?> {
     }
 
     const std::string key = get_group_key($inputs);
+
     if (isKeyNew(key)) {
       map[key] = 0;
     }
@@ -155,8 +170,10 @@ class <?=$className?> {
       return false;
     }
 
+    std::string group_key = groups_to_return.at(return_counter);
+    std::vector<std::string> attributes = key_to_grouping_attributes(group_key);
 <?  foreach (array_keys($outputs) as $counter => $name) { ?>
-    <?=$name?> = groups_to_return.at(return_counter);
+      <?=$name?> = attributes[<?=$counter?>];
 <?  } ?>
     return_counter++;
     return true;
