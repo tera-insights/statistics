@@ -9,20 +9,13 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
     // Setting output types.
     $outputs = array_combine(array_keys($outputs), $inputs);
 
-    // The dimension of the data, i.e. how many elements are in each item.
-    $dimension = count($inputs);
-
     // Processing of template arguments
     $minimumGroupSize = $t_args['minimumGroupSize'];
     $maximumGroupsAllowed = $t_args['maximumGroupsAllowed'];
     $initialSamplingRate = $t_args['initialSamplingRate'];
     $reductionRate = $t_args['reductionRate'];
 
-    // Array for generating inline C++ code;
-    $codeArray = array_combine(array_keys($outputs), range(0, $dimension - 1));
-
-    $debug = get_default($t_args, 'debug', 0);
-
+    $isDebugMode = get_default($t_args, 'debug', 0) > 0;
     $tuplesPerFragment = 200000;
 
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
@@ -54,9 +47,6 @@ class <?=$className?> {
   double samplingRate = <?=$initialSamplingRate?>;
   const double reductionRate = <?=$reductionRate?>;
   static constexpr std::size_t kFragmentSize = <?=$tuplesPerFragment?>;
-
-  // The index used to iterate during GetNextResult;
-  double return_counter;
 
   // Maps hashed group key to the (effective) number of tuples we have seen for
   // this group. I use the word "effective" because this algorithm resamples if
@@ -150,13 +140,6 @@ class <?=$className?> {
     }
   }
 
-  // Finalize is a dummy function for this GLA and only exists because it is
-  // required for a GLA of type multi. Setting return_counter is only a safety
-  // check as it should already be 0.
-  void Finalize() {
-    return_counter = 0;
-  }
-
   const std::map<KeySet, int> &GetFrequencyMap() {
     return frequency_map;
   }
@@ -179,7 +162,7 @@ class <?=$className?> {
     // This pushes back the past-the-end iterator, the upper boundary for the
     // last fragment, which can have fewer than kFragmentSize groups.
     iterators.push_back(it);
-<?  if ($debug > 0) { ?>
+<?  if ($isDebugMode) { ?>
     std::cout << "There are " << iterators.size() << " iterators." << std::endl;
 <?  } ?>
     return iterators.size() - 1;
