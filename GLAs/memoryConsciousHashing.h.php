@@ -44,11 +44,12 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $minimumBucketScorePercentage = $t_args['minimumBucketScorePercentage'];
     $maxNumberOfBucketsProduced = $t_args['maxNumberOfBuckets'];
     $numberOfBuckets = $t_args['arraySize'];
-    $numberOfSegments = $numberOfBuckets / 10;
+    $numberOfSegments = 10;
+    $bucketsPerSegment = ceil($numberOfBuckets / $numberOfBuckets);
     $isDebugMode = get_default($t_args, 'debug', 0) > 0;
     $tuplesPerFragment = 200000;
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
-      'map', 'cstdlib', 'string', 'iostream', 'array'];
+      'map', 'cstdlib', 'string', 'iostream', 'array', 'list'];
     $seed     = get_default($t_args, 'seed', rand());
     $user_headers = [];
     $lib_headers  = ['base\HashFct.h'];
@@ -65,8 +66,9 @@ class <?=$className?> {
   using KeySet = std::tuple<<?=typed($inputs)?>>;
   using InnerGLA = <?=$innerGLA?>;
   using ScoreType = uint64_t;
-  using ArrayType = std::array<<?=$innerGLA?>, <?=$numberOfBuckets?>>;
-  using ArrayOfArraysType = std::vector<ArrayType>;
+  using ArrayType = std::array<<?=$innerGLA?>, <?=$bucketsPerSegment?>>;
+  using ArrayOfArraysType = std::list<ArrayType>;
+  using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
   using HashType = uint64_t;
   
   using FragmentedResultIterator = struct {
@@ -78,37 +80,20 @@ class <?=$className?> {
   const float minimum_bucket_score_percentage = <?=$minimumBucketScorePercentage?>;
   const uint64_t max_number_of_buckets = <?=$maxNumberOfBuckets?>;
   static const constexpr HashType seed = <?=$seed?>;
-  ScoreType total_score = 0;
   
   ArrayOfArraysType segments;
 
   // the iterators, only 2 elements if multi, many if fragment
   std::vector<ArrayType::const_iterator> result_iterators;
 
-  <?=$className?> :
-    segments(<?=numberOfSegments?>) {}
+  <?=$className?>() {
+    for (size_t i = 0; i < <?=$numberOfSegments?>; i++) {
+      segments.push_back(ArrayType());
+    }
+  }
 
   HashType get_bucket_key(KeySet group) {
     return SpookyHash(Hash(group), seed);
-  }
-
-  bool bucket_will_survive(HashType key) {
-    auto minimum_score = minimum_bucket_score_percentage * total_score;
-    return aggregate_scores[key] > minimum_score;
-  }
-
-  int numberOfBucketsThatWillSurvive() {
-    int survivors = 0;
-    for (auto it = aggregate_scores.begin(); it != aggregate_scores.end(); it++) {
-      if (bucket_will_survive(*it)) {
-        survivors++;
-      }
-    }
-    return survivors;
-  }
-
-  bool isTooMuchMemoryUsed() {
-    return numberOfBucketsThatWillSurvive() > max_number_of_buckets;
   }
 
   KeySet get_group_key(<?=const_typed_ref_args($groupingInputs)?>) {
@@ -122,6 +107,7 @@ class <?=$className?> {
 
  public:
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
+    
     auto index = get_bucket_key(<?=args($groupingInputs)?>);
     GLAs[index].AddItem(<?=args($glaInputs)?>);
   }
@@ -134,20 +120,68 @@ class <?=$className?> {
     }
   }
 
+  std::vector<ScoreArrayType> calculate_segmented_scores() {
+    std::vector<ScoreArrayType> segmented_scores(<?=$numberOfSegments?>);
+    auto buckets_seen = 0;
+    for (auto segment_it = segments.begin(); segment_it != segments.end(); segment_it++) {
+      ScoreArrayType array_of_scores;
+      for (size_t i = 0; i < segment_it->second().size() && buckets_seen < <?$numberOfBuckets?>; i++) {
+        ScoreType score = segment_it->second().at(gla_it).GetNextResult();
+        array_of_scores[i] = score;
+        
+        buckets_seen++;
+      }
+      segmented_scores.push_back(array_of_scores);
+      segments.erase(segments.begin());
+    }
+    return segmented_scores;
+  }
+
+  ScoreType get_total_score(std::vector<ScoreArrayType> segmented_scores) {
+    ScoreType total_score = 0;
+    auto buckets_seen = 0;
+    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
+      for (size_t i = 0; i < it->second().size() && buckets_seen < <?$numberOfBuckets?>; i++) {
+        total_score += score;
+      }
+    }
+    return total_score;
+  }
+
+  void keep_if_big_enough(ScoreArrayType scores, ScoreType total_score) {
+    ScoreType minimum_score = minimum_bucket_score_percentage * total_score;
+    std::copy_if(scores.begin(), scores.end(), std::back_inserter(scores),
+      [minimum_score](const ScoreType score) { return score > minimum_score });
+  }
+
+  size_t get_number_of_buckets(std::vector<ScoreArrayType> segmented_scores) {
+    auto bucket_count = 0; 
+    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
+      bucket_count += segmented_scores->second().size();
+    }
+    return bucket_count;
+  }
+
   // Construct the results
   void Finalize() {
     std::size_t num_fragment = 0;
-    auto it = aggregate_scores.cbegin();
-    for (std::size_t index = 0; it != aggregate_scores.cend(); ++it, index++) {
-      //total_score += it->GetNextResult();
-      if (index % kFragmentSize == 0) {
-        result_iterators.push_back(it);
-      }
+    std::vector<ScoreArrayType> segmented_scores = calculate_segmented_scores();
+    ScoreType total_score = get_total_score(segmented_scores);
+    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
+      keep_if_big_enough(segmented_scores->second(), total_score);
     }
-    result_iterators.push_back(it);
-<?  if ($isDebugMode) { ?>
-    std::cout << "There are " << result_iterators.size() << " iterators." << std::endl;
-<?  } ?>
+
+    size_t buckets = get_number_of_buckets(segmented_scores);
+    size_t buckets_seen = 0;
+    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
+      auto score_it = it->second().begin();
+      for (size_t index = 0; index < score_it->size() && buckets_seen < buckets; it++) {
+        if (buckets_seen % kFragmentSize == 0) {
+          result_iterators.push_back(it);
+        }
+      }
+      result_iterators.push_back(it);
+    }
   }
 
   const ArrayType &GetAggregateScores() {
