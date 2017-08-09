@@ -41,7 +41,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $glaInputs = get_inputs_for_bucket_score_GLA($t_args, $inputs, $outputs, $states);
     $groupingInputs = get_grouping_attributes($t_args, $inputs);
     $innerGLA = get_inner_gla($t_args);
-    $minimumBucketScorePercentage = $t_args['minimumBucketScorePercentage'];
+    $totalScoreMultiplier = $t_args['totalScoreMultiplier'];
     $maxNumberOfBucketsProduced = $t_args['maxNumberOfBuckets'];
     $numberOfBuckets = $t_args['arraySize'];
     $numberOfSegments = 10;
@@ -77,7 +77,7 @@ class <?=$className?> {
   };
 
   static constexpr std::size_t kFragmentSize = <?=$tuplesPerFragment?>;
-  const float minimum_bucket_score_percentage = <?=$minimumBucketScorePercentage?>;
+  const float total_score_multiplier = <?=$totalScoreMultiplier?>;
   const uint64_t max_number_of_buckets = <?=$maxNumberOfBuckets?>;
   static const constexpr HashType seed = <?=$seed?>;
   
@@ -137,26 +137,20 @@ class <?=$className?> {
     return segmented_scores;
   }
 
-  void keep_if_big_enough(ScoreArrayType scores, ScoreType total_score) {
-    ScoreType minimum_score = minimum_bucket_score_percentage * total_score;
-    std::copy_if(scores.begin(), scores.end(), std::back_inserter(scores),
-      [minimum_score](const ScoreType score) { return score > minimum_score });
-  }
-
   // Construct the results
   void Finalize() {
-    std::size_t num_fragment = 0;
-    std::vector<ScoreArrayType> segmented_scores = calculate_segmented_scores();
-    ScoreType total_score = get_total_score(segmented_scores, <?=$numberOfBuckets?>);
-    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
-      keep_if_big_enough(segmented_scores->second(), total_score);
+    auto num_fragment = 0;
+    auto scores = calculate_segmented_scores();
+    auto total_score = get_total_score(segmented_scores, <?=$numberOfBuckets?>);
+    for (auto it = scores.begin(); it != scores.end(); it++) {
+      keep_if_big_enough(scores->second(), total_score, total_score_multiplier);
     }
 
-    size_t buckets = get_number_of_buckets(segmented_scores);
-    size_t buckets_seen = 0;
-    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
+    auto num_buckets = get_number_of_buckets(scores);
+    auto buckets_seen = 0;
+    for (auto it = scores.begin(); it != scores.end(); it++) {
       auto score_it = it->second().begin();
-      for (size_t index = 0; index < score_it->size() && buckets_seen < buckets; it++) {
+      for (auto index = 0; index < score_it->size() && buckets_seen < num_buckets_; it++) {
         if (buckets_seen % kFragmentSize == 0) {
           result_iterators.push_back(it);
         }
