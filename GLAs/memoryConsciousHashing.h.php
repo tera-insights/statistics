@@ -52,7 +52,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
       'map', 'cstdlib', 'string', 'iostream', 'array', 'list'];
     $seed     = get_default($t_args, 'seed', rand());
     $user_headers = [];
-    $lib_headers  = ['base\HashFct.h'];
+    $lib_headers  = ['base\HashFct.h', 'stats\MemoryEstimators.h'];
     $libraries = $innerGLA->libraries();
     $extra        = [];
     $properties   = ['tuples'];
@@ -137,36 +137,17 @@ class <?=$className?> {
     return segmented_scores;
   }
 
-  ScoreType get_total_score(std::vector<ScoreArrayType> segmented_scores) {
-    ScoreType total_score = 0;
-    auto buckets_seen = 0;
-    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
-      for (size_t i = 0; i < it->second().size() && buckets_seen < <?$numberOfBuckets?>; i++) {
-        total_score += score;
-      }
-    }
-    return total_score;
-  }
-
   void keep_if_big_enough(ScoreArrayType scores, ScoreType total_score) {
     ScoreType minimum_score = minimum_bucket_score_percentage * total_score;
     std::copy_if(scores.begin(), scores.end(), std::back_inserter(scores),
       [minimum_score](const ScoreType score) { return score > minimum_score });
   }
 
-  size_t get_number_of_buckets(std::vector<ScoreArrayType> segmented_scores) {
-    auto bucket_count = 0; 
-    for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
-      bucket_count += segmented_scores->second().size();
-    }
-    return bucket_count;
-  }
-
   // Construct the results
   void Finalize() {
     std::size_t num_fragment = 0;
     std::vector<ScoreArrayType> segmented_scores = calculate_segmented_scores();
-    ScoreType total_score = get_total_score(segmented_scores);
+    ScoreType total_score = get_total_score(segmented_scores, <?=$numberOfBuckets?>);
     for (auto it = segmented_scores.begin(); it != segmented_scores.end(); it++) {
       keep_if_big_enough(segmented_scores->second(), total_score);
     }
