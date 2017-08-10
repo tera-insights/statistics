@@ -4,7 +4,7 @@
 function get_inputs_for_bucket_score_GLA(array $t_args, array $inputs) {
     $glaInputs = [];
     $groupingInputNames = $t_args['group'];
-    grokit_assert( is_array($gbyAttNames), 'Invalid value given for groups, expected an expression name or list of expression names');
+    grokit_assert( is_array($groupingInputNames), 'Invalid value given for groups, expected an expression name or list of expression names');
     foreach( $inputs as $name => $type ) {
       $is_argument_for_bucket_score_gla = !in_array($name, $groupingInputNames);
       if($is_argument_for_bucket_score_gla) {
@@ -40,19 +40,19 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $outputs = ["hashed_key" => lookupType("BASE::INT")];
     $glaInputs = get_inputs_for_bucket_score_GLA($t_args, $inputs, $outputs, $states);
     $groupingInputs = get_grouping_attributes($t_args, $inputs);
-    $innerGLA = get_inner_gla($t_args);
-    $totalScoreMultiplier = $t_args['totalScoreMultiplier'];
-    $maxNumberOfBucketsProduced = $t_args['maxNumberOfBuckets'];
-    $numberOfBuckets = $t_args['arraySize'];
+    $innerGLA = get_inner_gla($t_args, $inputs, $states);
+    $minimumTotalScoreMultiplier = $t_args['minimumTotalScoreMultiplier'];
+    $maxNumberOfBucketsProduced = $t_args['maxNumberOfBucketsProduced'];
+    $initialNumberOfBuckets = $t_args['initialNumberOfBuckets'];
     $numberOfSegments = 10;
-    $bucketsPerSegment = ceil($numberOfBuckets / $numberOfBuckets);
+    $bucketsPerSegment = ceil($initialNumberOfBuckets / $numberOfSegments);
     $isDebugMode = get_default($t_args, 'debug', 0) > 0;
     $tuplesPerFragment = 200000;
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
-      'map', 'cstdlib', 'string', 'iostream', 'array', 'list'];
+      'map', 'cstdlib', 'string', 'iostream', 'array', 'list', 'iterator'];
     $seed     = get_default($t_args, 'seed', rand());
     $user_headers = [];
-    $lib_headers  = ['base\HashFct.h', 'stats\MemoryEstimators.h'];
+    $lib_headers  = ['base\HashFct.h', 'statistics\MemoryEstimators.h'];
     $libraries = $innerGLA->libraries();
     $extra        = [];
     $properties   = ['tuples'];
@@ -70,53 +70,26 @@ class <?=$className?> {
   using ArrayOfArraysType = std::list<ArrayType>;
   using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
   using HashType = uint64_t;
-  
-  using FragmentedResultIterator = struct {
-    ArrayType::const_iterator current, end;
-    std::size_t index;
-  };
 
   static constexpr std::size_t kFragmentSize = <?=$tuplesPerFragment?>;
-  const float total_score_multiplier = <?=$totalScoreMultiplier?>;
-  const uint64_t max_number_of_buckets = <?=$maxNumberOfBuckets?>;
+  const float min_total_score_multiplier = <?=$minimumTotalScoreMultiplier?>;
+  const uint64_t max_number_of_buckets_produced = <?=$maxNumberOfBucketsProduced?>;
   static const constexpr HashType seed = <?=$seed?>;
+  static const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
 
-  // the iterators, only 2 elements if multi, many if fragment
-  std::vector<ArrayType::const_iterator> result_iterators;
+  template <typename T>
+  struct FragmentedResultIterator {
+    typename std::vector<T>::const_iterator current;
+    typename std::vector<T>::const_iterator end;
+  };
+
+  std::vector<FragmentedResultIterator<HashType>> result_iterators;
 
   <?=$className?>() {
     for (size_t i = 0; i < <?=$numberOfSegments?>; i++) {
       segments.push_back(ArrayType());
-    }
-  }
-
-  HashType get_bucket_key(KeySet group) {
-    return SpookyHash(Hash(group), seed);
-  }
-
-  KeySet get_group_key(<?=const_typed_ref_args($groupingInputs)?>) {
-    return KeySet(<?=args($groupingInputs)?>);
-  }
-
-  HashType get_bucket_key(<?=const_typed_ref_args($groupingInputs)?>) {
-    auto group = get_group_key(<?=args($groupingInputs)?>);
-    return get_bucket_key(group);
-  }
-
- public:
-  void AddItem(<?=const_typed_ref_args($inputs)?>) {
-    
-    auto index = get_bucket_key(<?=args($groupingInputs)?>);
-    GLAs[index].AddItem(<?=args($glaInputs)?>);
-  }
-
-  // Merges `this->aggregate_scores` and `other->aggregate_scores`.
-  void AddState(<?=$className?>& other)  {
-    auto other_map = other.GetAggregateScores();
-    for (auto it = GLAs.begin(); it != GLAs.end(); it++) {
-      it->AddState(other_map[i]);
     }
   }
 
@@ -125,10 +98,10 @@ class <?=$className?> {
     auto buckets_seen = 0;
     for (auto segment_it = segments.begin(); segment_it != segments.end(); segment_it++) {
       ScoreArrayType array_of_scores;
-      for (size_t i = 0; i < segment_it->second().size() && buckets_seen < <?$numberOfBuckets?>; i++) {
-        ScoreType score = segment_it->second().at(gla_it).GetNextResult();
+      for (size_t i = 0; i < segment_it->size() && buckets_seen < initialNumberOfBuckets; i++) {
+        long score;
+        segment_it->at(i).GetResult(score);
         array_of_scores[i] = score;
-        
         buckets_seen++;
       }
       segmented_scores.push_back(array_of_scores);
@@ -137,43 +110,63 @@ class <?=$className?> {
     return segmented_scores;
   }
 
-  // Construct the results
+ public:
+  void AddItem(<?=const_typed_ref_args($inputs)?>) {
+    auto group = KeySet(<?=args($groupingInputs)?>);
+    auto hash_of_group = SpookyHash(Hash(group), seed);
+    auto segment_index = hash_of_group / <?=$bucketsPerSegment?>;
+    auto GLA_index = hash_of_group % <?=$bucketsPerSegment?>;
+    auto segment_it = segments.begin();
+    std::advance(segment_it, segment_index);
+    segment_it->at(GLA_index).AddItem(<?=args($glaInputs)?>);
+  }
+
+  void AddState(const <?=$className?>& other)  {
+    ArrayOfArraysType other_map = other.GetAggregateScores();
+    for (size_t i = 0; i < other_map.size(); i++) {
+      for (auto other_segment_it = other_map.begin();
+        other_segment_it != other_map.end(); other_segment_it++) {
+        for (size_t j = 0; j < other_segment_it->size(); j++) {
+          auto beginning_it = segments.begin();
+          std::advance(beginning_it, i);
+          const auto my_segment_it = beginning_it;
+          my_segment_it->at(j).AddState(other_segment_it->at(j));
+        }
+      }
+    }
+  }
+
   void Finalize() {
-    auto num_fragment = 0;
     auto scores = calculate_segmented_scores();
-    auto total_score = get_total_score(segmented_scores, <?=$numberOfBuckets?>);
-    auto minimum_score = total_score_multiplier;
+    auto total_score = get_total_score(segments, initialNumberOfBuckets);
+    auto minimum_score = min_total_score_multiplier * total_score;
     auto filtered = keep_if_big_enough(scores, minimum_score);
     result_iterators = build_result_iterators(filtered, kFragmentSize);
   }
 
-  const ArrayType &GetAggregateScores() {
-    return aggregate_scores;
+  const ArrayOfArraysType &GetAggregateScores() const {
+    return segments;
   }
 
-  int GetNumFragments() {    
+  int GetNumFragments() {
     return result_iterators.size() - 1;
   }
 
-  FragmentedResultIterator* Finalize(int fragment) const {
-    auto current = result_iterators[fragment];
-    auto end = result_iterators[fragment + 1];
-    return new FragmentedResultIterator{current, end, 0};
+  FragmentedResultIterator<uint64_t>* Finalize(int fragment) const {
+    return result_iterators.at(fragment);
   }
 
-  bool GetNextResult(FragmentedResultIterator* it, <?=typed_ref_args($outputs)?>) {
+  bool GetNextResult(FragmentedResultIterator<uint64_t>* it, <?=typed_ref_args($outputs)?>) {
     if (it->current == it->end) {
       return false;
     }
-<?  foreach (array_keys($outputs) as $index => $name) { ?>
-      <?=$name?> = std::get<<?=$index?>>(it->current->first);
-<?  } ?>
+    hashed_key = *(it->current);
     ++it->current;
     return true;
   }
 };
 
-using <?=$className?>_Iterator = <?=$className?>::FragmentedResultIterator;
+using <?=$className?>_Iterator = <?=$className?>::FragmentedResultIterator<uint64_t>;
 
 <?
     return [
