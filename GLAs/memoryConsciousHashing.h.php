@@ -142,21 +142,9 @@ class <?=$className?> {
     auto num_fragment = 0;
     auto scores = calculate_segmented_scores();
     auto total_score = get_total_score(segmented_scores, <?=$numberOfBuckets?>);
-    for (auto it = scores.begin(); it != scores.end(); it++) {
-      keep_if_big_enough(scores->second(), total_score, total_score_multiplier);
-    }
-
-    auto num_buckets = get_number_of_buckets(scores);
-    auto buckets_seen = 0;
-    for (auto it = scores.begin(); it != scores.end(); it++) {
-      auto score_it = it->second().begin();
-      for (auto index = 0; index < score_it->size() && buckets_seen < num_buckets_; it++) {
-        if (buckets_seen % kFragmentSize == 0) {
-          result_iterators.push_back(it);
-        }
-      }
-      result_iterators.push_back(it);
-    }
+    auto minimum_score = total_score_multiplier;
+    auto filtered = keep_if_big_enough(scores, minimum_score);
+    result_iterators = build_result_iterators(filtered, kFragmentSize);
   }
 
   const ArrayType &GetAggregateScores() {

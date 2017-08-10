@@ -74,4 +74,34 @@ VectorOfVectors<T> keep_if_big_enough(VectorOfVectors<T> segments, T minimum_sco
   return result;
 }
 
+template <typename T>
+struct FragmentedResultIterator {
+  typename std::vector<T>::const_iterator begin;
+  const std::size_t number_of_elements;
+};
+
+template <typename T>
+const std::vector<const FragmentedResultIterator<T>*> build_result_iterators(VectorOfVectors<T> vector,
+  size_t kFragmentSize) {
+  typename std::vector<const FragmentedResultIterator<T>*> result;
+  for (auto it = vector.begin(); it != vector.end(); it++) {
+    //std::cout << "it->size() = " << it->size() << std::endl;
+    auto score_it = it->cbegin();
+    for (;score_it != it->cend(); score_it++) {
+      unsigned long elements_seen = score_it - it->cbegin();
+      if (elements_seen % kFragmentSize == 0) {
+        unsigned long elementsLeft = it->cend() - score_it;
+        auto iteratorSize = std::min(elementsLeft, kFragmentSize);
+        // std::cout << "iterator size = " << iteratorSize << std::endl;
+        std::cout << "score_it = " << std::addressof(*score_it) << std::endl;
+        std::cout << "*score_it = " << *score_it << std::endl;
+        result.push_back(new FragmentedResultIterator<T>{score_it, iteratorSize});
+        auto last_it = result.end() - 1;
+        //std::cout << "most recently pushed fri = " << *((**last_it).begin) << std::endl;
+      }
+    }
+  }
+  return result;
+}
+
 #endif // _MEMORY_ESTIMATORS_H
