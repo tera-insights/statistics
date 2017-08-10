@@ -5,7 +5,7 @@
 #include <list>
 
 void test_get_total_score_on_ints() {
-  std::list<std::array<int, 3>> entries;
+  std::vector<std::array<int, 3>> entries;
   entries.push_back(std::array<int, 3>{1, 2, 3});
   entries.push_back(std::array<int, 3>{4, 5, 6});
   assert(get_total_score(entries, 6) == 21);
@@ -53,10 +53,10 @@ void test_build_result_iterators() {
   std::vector<std::vector<int>> vector;
   vector.push_back(std::vector<int>{1, 2, 3});
   vector.push_back(std::vector<int>{4, 5, 6});
-  auto result = build_result_iterators(vector, 2);
+  auto result = build_result_iterators<FragmentedResultIterator<int>>(vector, 2);
   int elements_seen = 0;
   for (size_t i = 0; i < result.size(); i++) {
-    for (auto it = result.at(i)->current; it != result.at(i)->end; it++) {
+    for (auto it = result.at(i).current; it != result.at(i).end; it++) {
       size_t outer_index = elements_seen / 3;
       size_t inner_index = elements_seen - (3 * outer_index);
       assert(vector.at(outer_index).at(inner_index) == *it);

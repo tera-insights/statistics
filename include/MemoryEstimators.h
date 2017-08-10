@@ -17,7 +17,7 @@ template <typename T>
 using VectorOfVectors = std::vector<std::vector<T>>;
 
 template <typename T, std::size_t N>
-T get_total_score(ListOfArrays<T, N> segments, uint64_t buckets) {
+T get_total_score(VectorOfArrays<T, N> segments, uint64_t buckets) {
   T total_score = 0;
   auto buckets_seen = 0;
   for (auto it = segments.begin(); it != segments.end(); it++) {
@@ -78,23 +78,25 @@ VectorOfVectors<T> keep_if_big_enough(VectorOfVectors<T> segments, T minimum_sco
   return result;
 }
 
+
 template <typename T>
 struct FragmentedResultIterator {
+  using elem_type = T;
   typename std::vector<T>::const_iterator current;
   typename std::vector<T>::const_iterator end;
 };
 
-template <typename T>
-const std::vector<const FragmentedResultIterator<T>*> build_result_iterators(const VectorOfVectors<T> &vector,
+template <typename U>
+std::vector<U> build_result_iterators(const VectorOfVectors<typename U::elem_type> &vector,
   size_t kFragmentSize) {
-  typename std::vector<const FragmentedResultIterator<T>*> result;
+  typename std::vector<U> result;
   for (auto it = vector.begin(); it != vector.end(); it++) {
     for (auto score_it = it->cbegin(); score_it != it->cend(); score_it++) {
       unsigned long elements_seen = score_it - it->cbegin();
       if (elements_seen % kFragmentSize == 0) {
         unsigned long elementsLeft = it->cend() - score_it;
         auto iteratorSize = std::min(elementsLeft, kFragmentSize);
-        result.push_back(new FragmentedResultIterator<T>{score_it, score_it + iteratorSize});
+        result.emplace_back(U{score_it, score_it + iteratorSize});
       }
     }
   }

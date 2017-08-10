@@ -65,7 +65,7 @@ class <?=$className?> {
  public:
   using KeySet = std::tuple<<?=typed($inputs)?>>;
   using InnerGLA = <?=$innerGLA?>;
-  using ScoreType = uint64_t;
+  using ScoreType = unsigned long;
   using ArrayType = std::array<<?=$innerGLA?>, <?=$bucketsPerSegment?>>;
   using ArrayOfArraysType = std::list<ArrayType>;
   using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
@@ -78,12 +78,6 @@ class <?=$className?> {
   static const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
-
-  template <typename T>
-  struct FragmentedResultIterator {
-    typename std::vector<T>::const_iterator current;
-    typename std::vector<T>::const_iterator end;
-  };
 
   std::vector<FragmentedResultIterator<HashType>> result_iterators;
 
@@ -138,10 +132,10 @@ class <?=$className?> {
 
   void Finalize() {
     auto scores = calculate_segmented_scores();
-    auto total_score = get_total_score(segments, initialNumberOfBuckets);
-    auto minimum_score = min_total_score_multiplier * total_score;
+    auto total_score = get_total_score(scores, initialNumberOfBuckets);
+    unsigned long minimum_score = min_total_score_multiplier * total_score;
     auto filtered = keep_if_big_enough(scores, minimum_score);
-    result_iterators = build_result_iterators(filtered, kFragmentSize);
+    result_iterators = build_result_iterators<FragmentedResultIterator<HashType>>(filtered, kFragmentSize);
   }
 
   const ArrayOfArraysType &GetAggregateScores() const {
@@ -152,11 +146,11 @@ class <?=$className?> {
     return result_iterators.size() - 1;
   }
 
-  FragmentedResultIterator<uint64_t>* Finalize(int fragment) const {
-    return result_iterators.at(fragment);
+  FragmentedResultIterator<HashType>* Finalize(int fragment) {
+    return &result_iterators.at(fragment);
   }
 
-  bool GetNextResult(FragmentedResultIterator<uint64_t>* it, <?=typed_ref_args($outputs)?>) {
+  bool GetNextResult(FragmentedResultIterator<ScoreType>* it, <?=typed_ref_args($outputs)?>) {
     if (it->current == it->end) {
       return false;
     }
@@ -166,7 +160,7 @@ class <?=$className?> {
   }
 };
 
-using <?=$className?>_Iterator = <?=$className?>::FragmentedResultIterator<uint64_t>;
+using <?=$className?>_Iterator = FragmentedResultIterator<<?=$className?>::ScoreType>;
 
 <?
     return [
