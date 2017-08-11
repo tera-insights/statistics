@@ -49,7 +49,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $isDebugMode = get_default($t_args, 'debug', 0) > 0;
     $tuplesPerFragment = 200000;
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
-      'map', 'cstdlib', 'string', 'iostream', 'array', 'list', 'iterator'];
+      'map', 'cstdlib', 'string', 'iostream', 'array', 'list', 'iterator', 'limits'];
     $seed     = get_default($t_args, 'seed', rand());
     $user_headers = [];
     $lib_headers  = ['base\HashFct.h', 'statistics\MemoryEstimators.h'];
@@ -70,11 +70,13 @@ class <?=$className?> {
   using ArrayOfArraysType = std::list<ArrayType>;
   using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
   using HashType = uint64_t;
+  using HalfHashType = uint32_t;
 
   static constexpr std::size_t kFragmentSize = <?=$tuplesPerFragment?>;
   const float min_total_score_multiplier = <?=$minimumTotalScoreMultiplier?>;
   const uint64_t max_number_of_buckets_produced = <?=$maxNumberOfBucketsProduced?>;
   static const constexpr HashType seed = <?=$seed?>;
+  const HalfHashType max_value_for_half_of_hash = std::numeric_limits<HalfHashType>::max();
   static const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
@@ -104,15 +106,25 @@ class <?=$className?> {
     return segmented_scores;
   }
 
+  int get_segment_index(HashType hash) {
+    HalfHashType upper_half_of_hash = hash >> 32;
+    int divisor = max_value_for_half_of_hash / (<?=$numberOfSegments?> - 1);
+    return upper_half_of_hash / divisor;
+  }
+
+  int get_GLA_index(HashType hash) {
+    HalfHashType lower_half_of_hash = hash << 32;
+    int divisor = max_value_for_half_of_hash / (<?=$bucketsPerSegment?> - 1);
+    return lower_half_of_hash / divisor;
+  }
+
  public:
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     auto group = KeySet(<?=args($groupingInputs)?>);
-    auto hash_of_group = SpookyHash(Hash(group), seed);
-    auto segment_index = hash_of_group / <?=$bucketsPerSegment?>;
-    auto GLA_index = hash_of_group % <?=$bucketsPerSegment?>;
+    auto hash = SpookyHash(Hash(group), seed);
     auto segment_it = segments.begin();
-    std::advance(segment_it, segment_index);
-    segment_it->at(GLA_index).AddItem(<?=args($glaInputs)?>);
+    std::advance(segment_it, get_segment_index(hash));
+    segment_it->at(get_GLA_index(hash)).AddItem(<?=args($glaInputs)?>);
   }
 
   void AddState(const <?=$className?>& other)  {
