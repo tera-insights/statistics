@@ -44,7 +44,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $minimumTotalScoreMultiplier = $t_args['minimumTotalScoreMultiplier'];
     $maxNumberOfBucketsProduced = $t_args['maxNumberOfBucketsProduced'];
     $initialNumberOfBuckets = $t_args['initialNumberOfBuckets'];
-    $numberOfSegments = 10;
+    $numberOfSegments = $t_args['numberOfSegments'];
     $bucketsPerSegment = ceil($initialNumberOfBuckets / $numberOfSegments);
     $isDebugMode = get_default($t_args, 'debug', 0) > 0;
     $tuplesPerFragment = 200000;
@@ -92,69 +92,78 @@ class <?=$className?> {
   std::vector<ScoreArrayType> calculate_segmented_scores() {
     std::vector<ScoreArrayType> segmented_scores(<?=$numberOfSegments?>);
     auto buckets_seen = 0;
-    for (auto segment_it = segments.begin(); segment_it != segments.end(); segment_it++) {
+    auto segment_it = segments.begin();
+    while (segment_it != segments.end()) {
       ScoreArrayType array_of_scores;
       for (size_t i = 0; i < segment_it->size() && buckets_seen < initialNumberOfBuckets; i++) {
         long score;
         segment_it->at(i).GetResult(score);
-        array_of_scores[i] = score;
+        array_of_scores[i] += score;
         buckets_seen++;
       }
       segmented_scores.push_back(array_of_scores);
-      segments.erase(segments.begin());
+      segment_it = segments.erase(segment_it);
     }
     return segmented_scores;
   }
 
   int get_segment_index(HashType hash) {
     HalfHashType upper_half_of_hash = hash >> 32;
+    bool isTableSmall = <?=$numberOfSegments?> == 1;
+    if (isTableSmall) {
+      return 0;
+    }
     int divisor = max_value_for_half_of_hash / (<?=$numberOfSegments?> - 1);
     return upper_half_of_hash / divisor;
   }
 
   int get_GLA_index(HashType hash) {
+    bool isTableSmall = <?=$bucketsPerSegment?> == 1;
+    if (isTableSmall) {
+      return 0;
+    }
     HalfHashType lower_half_of_hash = hash << 32;
     int divisor = max_value_for_half_of_hash / (<?=$bucketsPerSegment?> - 1);
     return lower_half_of_hash / divisor;
   }
 
  public:
+  ArrayOfArraysType::iterator get_segment(int index) {
+    auto it = segments.begin();
+    std::advance(it, index);
+    return it;
+  }
+
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     auto group = KeySet(<?=args($groupingInputs)?>);
     auto hash = SpookyHash(Hash(group), seed);
-    auto segment_it = segments.begin();
-    std::advance(segment_it, get_segment_index(hash));
-    segment_it->at(get_GLA_index(hash)).AddItem(<?=args($glaInputs)?>);
+    auto segment = get_segment(get_segment_index(hash));
+    segment->at(get_GLA_index(hash)).AddItem(<?=args($glaInputs)?>);
   }
 
-  void AddState(const <?=$className?>& other)  {
+  void AddState(<?=$className?>& other) {
     ArrayOfArraysType other_map = other.GetAggregateScores();
     for (size_t i = 0; i < other_map.size(); i++) {
-      for (auto other_segment_it = other_map.begin();
-        other_segment_it != other_map.end(); other_segment_it++) {
-        for (size_t j = 0; j < other_segment_it->size(); j++) {
-          auto beginning_it = segments.begin();
-          std::advance(beginning_it, i);
-          const auto my_segment_it = beginning_it;
-          my_segment_it->at(j).AddState(other_segment_it->at(j));
-        }
+      auto other_segment = other.get_segment(i);
+      for (size_t j = 0; j < other_segment->size(); j++) {
+        auto my_segment = get_segment(i);
+        my_segment->at(j).AddState(other_segment->at(j));
       }
     }
   }
 
-  void Finalize() {
-    auto scores = calculate_segmented_scores();
-    auto total_score = get_total_score(scores, initialNumberOfBuckets);
-    unsigned long minimum_score = min_total_score_multiplier * total_score;
-    auto filtered = keep_if_big_enough(scores, minimum_score);
-    result_iterators = build_result_iterators<FragmentedResultIterator<HashType>>(filtered, kFragmentSize);
-  }
+  void Finalize() {}
 
   const ArrayOfArraysType &GetAggregateScores() const {
     return segments;
   }
 
   int GetNumFragments() {
+    auto scores = calculate_segmented_scores();
+    auto total_score = get_total_score(scores, initialNumberOfBuckets);
+    unsigned long minimum_score = min_total_score_multiplier * total_score;
+    auto filtered = keep_if_big_enough(scores, minimum_score);
+    result_iterators = build_result_iterators<FragmentedResultIterator<HashType>>(filtered, kFragmentSize);
     return result_iterators.size() - 1;
   }
 
