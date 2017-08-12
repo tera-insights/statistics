@@ -69,6 +69,7 @@ class <?=$className?> {
   using ArrayType = std::array<<?=$innerGLA?>, <?=$bucketsPerSegment?>>;
   using ArrayOfArraysType = std::list<ArrayType>;
   using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
+  using ArrayOfScoreArrayType = std::array<ScoreArrayType, <?=$numberOfSegments?>>;
   using HashType = uint64_t;
   using HalfHashType = uint32_t;
 
@@ -80,6 +81,8 @@ class <?=$className?> {
   static const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
+  ArrayOfScoreArrayType scores;
+  ScoreType total_score;
 
   std::vector<FragmentedResultIterator<HashType>> result_iterators;
 
@@ -89,8 +92,8 @@ class <?=$className?> {
     }
   }
 
-  std::vector<ScoreArrayType> calculate_segmented_scores() {
-    std::vector<ScoreArrayType> segmented_scores(<?=$numberOfSegments?>);
+  ArrayOfScoreArrayType calculate_segmented_scores() {
+    ArrayOfScoreArrayType segmented_scores(<?=$numberOfSegments?>);
     auto buckets_seen = 0;
     auto segment_it = segments.begin();
     while (segment_it != segments.end()) {
@@ -159,12 +162,9 @@ class <?=$className?> {
   }
 
   int GetNumFragments() {
-    auto scores = calculate_segmented_scores();
-    auto total_score = get_total_score(scores, initialNumberOfBuckets);
-    unsigned long minimum_score = min_total_score_multiplier * total_score;
-    auto filtered = keep_if_big_enough(scores, minimum_score);
-    result_iterators = build_result_iterators<FragmentedResultIterator<HashType>>(filtered, kFragmentSize);
-    return result_iterators.size() - 1;
+    scores = calculate_segmented_scores();
+    total_score = get_total_score(scores, initialNumberOfBuckets);
+    return 0;
   }
 
   FragmentedResultIterator<HashType>* Finalize(int fragment) {
@@ -178,6 +178,16 @@ class <?=$className?> {
     hashed_key = *(it->current);
     ++it->current;
     return true;
+  }
+
+  bool IsGroupSurvivor(<?=const_typed_ref_args($groupingInputs)?>) {
+    auto group = KeySet(<?=args($groupingInputs)?>);
+    auto hash = SpookyHash(Hash(group), seed);
+    auto segment_index = get_segment_index(hash);
+    auto bucket_index = get_bucket_index(hash);
+    auto bucket_score = scores.at(segment_index).at(bucket_index);
+    auto minimum_score = min_total_score_multiplier * total_score;
+    return minimum_score <= bucket_score;
   }
 };
 

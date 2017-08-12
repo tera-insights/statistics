@@ -47,3 +47,38 @@ function Hash_To_Group($t_args, $inputs, $outputs, $states) {
     $extra        = [];
     $result_type  = ['multi'];
 ?>
+
+class <?=$className?>;
+
+<?  $constantState = lookupResource(
+        "Join_Constant_State", ['className' => $className, 'states' => $states]
+    ); ?>
+
+class <?=$className?> {
+ private:
+  using ConstantState = <?=$constantState?>;
+  const <?=$constantState?>& constant_state;
+
+ public:
+  <?=$className?>(const <?=$constantState?>& state)
+      : constant_state(state) {
+  }
+
+  bool Filter(<?=const_typed_ref_args($inputs)?>) {
+    return constant_state.hasher.IsGroupSurvivor(<?=$groupingInputs?>);
+  }
+};
+
+<?
+    return [
+		'kind'				=> 'GF',
+		'name'				=> $name,
+		'input'				=> $inputs,
+		'system_headers' 	=> $sys_headers,
+		'libraries'			=> $libraries,
+		'generated_state'	=> $cState,
+	];
+}
+?>
+
+
