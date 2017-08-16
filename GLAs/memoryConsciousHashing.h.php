@@ -38,7 +38,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
 {
     $className = generate_name("MemoryConsciousHashing");
     $outputs = ["hashed_key" => lookupType("BASE::INT")];
-    $glaInputs = get_inputs_for_bucket_score_GLA($t_args, $inputs, $outputs, $states);
+    $glaInputs = get_inputs_for_bucket_score_GLA($t_args, $inputs);
     $groupingInputs = get_grouping_attributes($t_args, $inputs);
     $innerGLA = get_inner_gla($t_args, $inputs, $states);
     $minimumTotalScoreMultiplier = $t_args['minimumTotalScoreMultiplier'];
@@ -93,9 +93,10 @@ class <?=$className?> {
   }
 
   ArrayOfScoreArrayType calculate_segmented_scores() {
-    ArrayOfScoreArrayType segmented_scores(<?=$numberOfSegments?>);
+    ArrayOfScoreArrayType segmented_scores;
     auto buckets_seen = 0;
     auto segment_it = segments.begin();
+    auto segments_seen = 0;
     while (segment_it != segments.end()) {
       ScoreArrayType array_of_scores;
       for (size_t i = 0; i < segment_it->size() && buckets_seen < initialNumberOfBuckets; i++) {
@@ -104,13 +105,14 @@ class <?=$className?> {
         array_of_scores[i] += score;
         buckets_seen++;
       }
-      segmented_scores.push_back(array_of_scores);
+      segmented_scores[segments_seen] = array_of_scores;
       segment_it = segments.erase(segment_it);
+      segments_seen++;
     }
     return segmented_scores;
   }
 
-  int get_segment_index(HashType hash) {
+  int get_segment_index(HashType hash) const {
     HalfHashType upper_half_of_hash = hash >> 32;
     bool isTableSmall = <?=$numberOfSegments?> == 1;
     if (isTableSmall) {
@@ -120,7 +122,7 @@ class <?=$className?> {
     return upper_half_of_hash / divisor;
   }
 
-  int get_GLA_index(HashType hash) {
+  int get_bucket_index(HashType hash) const {
     bool isTableSmall = <?=$bucketsPerSegment?> == 1;
     if (isTableSmall) {
       return 0;
@@ -141,7 +143,7 @@ class <?=$className?> {
     auto group = KeySet(<?=args($groupingInputs)?>);
     auto hash = SpookyHash(Hash(group), seed);
     auto segment = get_segment(get_segment_index(hash));
-    segment->at(get_GLA_index(hash)).AddItem(<?=args($glaInputs)?>);
+    segment->at(get_bucket_index(hash)).AddItem(<?=args($glaInputs)?>);
   }
 
   void AddState(<?=$className?>& other) {
@@ -155,16 +157,13 @@ class <?=$className?> {
     }
   }
 
-  void Finalize() {}
-
   const ArrayOfArraysType &GetAggregateScores() const {
     return segments;
   }
 
-  int GetNumFragments() {
+  void FinalizeState() {
     scores = calculate_segmented_scores();
     total_score = get_total_score(scores, initialNumberOfBuckets);
-    return 0;
   }
 
   FragmentedResultIterator<HashType>* Finalize(int fragment) {
@@ -180,7 +179,7 @@ class <?=$className?> {
     return true;
   }
 
-  bool IsGroupSurvivor(<?=const_typed_ref_args($groupingInputs)?>) {
+  bool IsGroupSurvivor(<?=const_typed_ref_args($groupingInputs)?>) const {
     auto group = KeySet(<?=args($groupingInputs)?>);
     auto hash = SpookyHash(Hash(group), seed);
     auto segment_index = get_segment_index(hash);
@@ -205,7 +204,8 @@ using <?=$className?>_Iterator = FragmentedResultIterator<<?=$className?>::Score
         'iterable'       => false,
         'input'          => $inputs,
         'output'         => $outputs,
-        'result_type'    => $result_type,
+        'result_type'    => ['state'],
+        'finalize_as_state' => true,
     ];
 }
 ?>

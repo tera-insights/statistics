@@ -7,13 +7,12 @@ function Hash_To_Group_Constant_State(array $t_args) {
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = [];
-}
 ?>
 
 class <?=$className?>ConstantState {
  private:
     using Hasher = <?=$states_['hasher']?>;
-    const Hasher::Hasher hasher;
+    const Hasher hasher;
 
  public:
     friend class <?=$className?>;
@@ -35,10 +34,23 @@ class <?=$className?>ConstantState {
     ];
 }
 
-function Hash_To_Group($t_args, $inputs, $outputs, $states) {
+function get_grouping_attributes_for_hash_to_group(array $t_args, array $inputs) {
+    $groupingInputNames = $t_args['group'];
+    $grouping_attributes = [];
+    foreach( $inputs as $name => $type ) {
+        $is_grouping_attribute = in_array($name, $groupingInputNames);
+        if($is_grouping_attribute) {
+        $grouping_attributes[$name] = $type;
+        }
+    }
+    return $grouping_attributes;
+}
+
+
+function Hash_To_Group(array $t_args, array $inputs, array $states) {
     $className = generate_name('Hash_To_Group');
     $states_ = array_combine(['hasher'], $states);
-    $outputs = get_grouping_attributes($t_args);
+    $groupingInputs = get_grouping_attributes_for_hash_to_group($t_args, $inputs);
     $sys_headers  = [];
     $user_headers = [];
     $lib_headers  = [];
@@ -51,7 +63,7 @@ function Hash_To_Group($t_args, $inputs, $outputs, $states) {
 class <?=$className?>;
 
 <?  $constantState = lookupResource(
-        "Join_Constant_State", ['className' => $className, 'states' => $states]
+        "statistics::Hash_To_Group_Constant_State", ['className' => $className, 'states' => $states]
     ); ?>
 
 class <?=$className?> {
@@ -65,18 +77,18 @@ class <?=$className?> {
   }
 
   bool Filter(<?=const_typed_ref_args($inputs)?>) {
-    return constant_state.hasher.IsGroupSurvivor(<?=$groupingInputs?>);
+    return constant_state.hasher.IsGroupSurvivor(<?=args($groupingInputs)?>);
   }
 };
 
 <?
     return [
 		'kind'				=> 'GF',
-		'name'				=> $name,
+		'name'				=> $className,
 		'input'				=> $inputs,
 		'system_headers' 	=> $sys_headers,
 		'libraries'			=> $libraries,
-		'generated_state'	=> $cState,
+		'generated_state'	=> $constantState,
 	];
 }
 ?>

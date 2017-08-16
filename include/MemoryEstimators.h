@@ -10,6 +10,9 @@
 template <typename T, std::size_t N>
 using VectorOfArrays = std::vector<std::array<T, N>>;
 
+template <typename T, std::size_t N1, std::size_t N2>
+using ArrayOfArrays = std::array<std::array<T, N1>, N2>;
+
 template <typename T, std::size_t N>
 using ListOfArrays = std::list<std::array<T, N>>;
 
@@ -18,6 +21,20 @@ using VectorOfVectors = std::vector<std::vector<T>>;
 
 template <typename T, std::size_t N>
 T get_total_score(VectorOfArrays<T, N> segments, uint64_t buckets) {
+  T total_score = 0;
+  auto buckets_seen = 0;
+  for (auto it = segments.begin(); it != segments.end(); it++) {
+    auto segment_size = it->size();
+    for (size_t i = 0; i < segment_size && buckets_seen < buckets; i++) {
+      total_score += it->at(i);
+      buckets_seen++;
+    }
+  }
+  return total_score;
+}
+
+template <typename T, std::size_t N1, std::size_t N2>
+T get_total_score(ArrayOfArrays<T, N1, N2> segments, uint64_t buckets) {
   T total_score = 0;
   auto buckets_seen = 0;
   for (auto it = segments.begin(); it != segments.end(); it++) {
