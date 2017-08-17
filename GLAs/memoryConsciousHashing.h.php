@@ -50,7 +50,7 @@ function Memory_Conscious_Hashing(array $t_args, array $inputs, array $outputs, 
     $tuplesPerFragment = 200000;
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
       'map', 'cstdlib', 'string', 'iostream', 'array', 'list', 'iterator', 'limits'];
-    $seed     = get_default($t_args, 'seed', rand());
+    $seed = 0;
     $user_headers = [];
     $lib_headers  = ['base\HashFct.h', 'statistics\MemoryEstimators.h'];
     $libraries = $innerGLA->libraries();
@@ -63,13 +63,16 @@ class <?=$className?>;
 
 class <?=$className?> {
  public:
-  using KeySet = std::tuple<<?=typed($inputs)?>>;
+  static const uint64_t numberOfSegments = <?=$numberOfSegments?>;
+  static const uint64_t bucketsPerSegment = <?=$bucketsPerSegment?>;
+
+  using KeySet = std::tuple<<?=typed($groupingInputs)?>>;
   using InnerGLA = <?=$innerGLA?>;
   using ScoreType = unsigned long;
-  using ArrayType = std::array<<?=$innerGLA?>, <?=$bucketsPerSegment?>>;
+  using ArrayType = std::array<<?=$innerGLA?>, bucketsPerSegment>;
   using ArrayOfArraysType = std::list<ArrayType>;
-  using ScoreArrayType = std::array<ScoreType, <?=$bucketsPerSegment?>>;
-  using ArrayOfScoreArrayType = std::array<ScoreArrayType, <?=$numberOfSegments?>>;
+  using ScoreArrayType = std::array<ScoreType, bucketsPerSegment>;
+  using ArrayOfScoreArrayType = std::array<ScoreArrayType, numberOfSegments>;
   using HashType = uint64_t;
   using HalfHashType = uint32_t;
 
@@ -78,7 +81,7 @@ class <?=$className?> {
   const uint64_t max_number_of_buckets_produced = <?=$maxNumberOfBucketsProduced?>;
   static const constexpr HashType seed = <?=$seed?>;
   const HalfHashType max_value_for_half_of_hash = std::numeric_limits<HalfHashType>::max();
-  static const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
+  const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
   ArrayOfScoreArrayType scores;
@@ -87,49 +90,45 @@ class <?=$className?> {
   std::vector<FragmentedResultIterator<HashType>> result_iterators;
 
   <?=$className?>() {
-    for (size_t i = 0; i < <?=$numberOfSegments?>; i++) {
+    for (size_t i = 0; i < numberOfSegments; i++) {
       segments.push_back(ArrayType());
     }
   }
 
-  ArrayOfScoreArrayType calculate_segmented_scores_and_total_score() {
-    ArrayOfScoreArrayType segmented_scores;
+  void calculate_segmented_scores_and_total_score() {
     auto buckets_seen = 0;
     auto segment_it = segments.begin();
     auto segments_seen = 0;
     while (segment_it != segments.end()) {
-      ScoreArrayType array_of_scores;
       for (size_t i = 0; i < segment_it->size() && buckets_seen < initialNumberOfBuckets; i++) {
         long score;
         segment_it->at(i).GetResult(score);
         total_score += score;
-        array_of_scores[i] += score;
+        scores[segments_seen][i] += score;
         buckets_seen++;
       }
-      segmented_scores[segments_seen] = array_of_scores;
       segment_it = segments.erase(segment_it);
       segments_seen++;
     }
-    return segmented_scores;
   }
 
-  int get_segment_index(HashType hash) const {
-    HalfHashType upper_half_of_hash = (hash >> 32) & 0xFFFFFFFFLL;
-    bool isTableSmall = <?=$numberOfSegments?> == 1;
+  int get_segment_index(HashType hash) const {    
+    bool isTableSmall = numberOfSegments == 1;
     if (isTableSmall) {
       return 0;
     }
-    int divisor = max_value_for_half_of_hash / (<?=$numberOfSegments?> - 1);
+    HalfHashType upper_half_of_hash = (hash >> 32) & 0xFFFFFFFFLL;
+    int divisor = max_value_for_half_of_hash / (numberOfSegments - 1);
     return upper_half_of_hash / divisor;
   }
 
   int get_bucket_index(HashType hash) const {
-    bool isTableSmall = <?=$bucketsPerSegment?> == 1;
+    bool isTableSmall = bucketsPerSegment == 1;
     if (isTableSmall) {
       return 0;
     }
     HalfHashType lower_half_of_hash = hash & 0xFFFFFFFFLL;
-    int divisor = max_value_for_half_of_hash / (<?=$bucketsPerSegment?> - 1);
+    int divisor = max_value_for_half_of_hash / (bucketsPerSegment - 1);
     return lower_half_of_hash / divisor;
   }
 
@@ -141,8 +140,7 @@ class <?=$className?> {
   }
 
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
-    auto group = KeySet(<?=args($groupingInputs)?>);
-    auto hash = SpookyHash(Hash(group), seed);
+    auto hash = chainedHash(<?=args($groupingInputs)?>);
     auto segment = get_segment(get_segment_index(hash));
     segment->at(get_bucket_index(hash)).AddItem(<?=args($glaInputs)?>);
   }
@@ -163,7 +161,7 @@ class <?=$className?> {
   }
 
   void FinalizeState() {
-    scores = calculate_segmented_scores_and_total_score();
+    calculate_segmented_scores_and_total_score();
   }
 
   FragmentedResultIterator<HashType>* Finalize(int fragment) {
@@ -179,9 +177,16 @@ class <?=$className?> {
     return true;
   }
 
+  HashType chainedHash(<?=const_typed_ref_args($groupingInputs)?>) const {
+    HashType result = seed;
+<?  foreach ($groupingInputs as $index => $value) {?>
+    result = SpookyHash(Hash(<?=$index?>), result);
+<?}?>
+    return result;
+  }
+
   bool IsGroupSurvivor(<?=const_typed_ref_args($groupingInputs)?>) const {
-    auto group = KeySet(<?=args($groupingInputs)?>);
-    auto hash = SpookyHash(Hash(group), seed);
+    auto hash = chainedHash(<?=args($groupingInputs)?>);
     auto segment_index = get_segment_index(hash);
     auto bucket_index = get_bucket_index(hash);
     auto bucket_score = scores.at(segment_index).at(bucket_index);
