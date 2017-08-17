@@ -77,7 +77,7 @@ class <?=$className?> {
   }
 
   bool Filter(<?=const_typed_ref_args($inputs)?>) {
-    return !constant_state.hasher.IsGroupSurvivor(<?=args($groupingInputs)?>);
+    return constant_state.hasher.IsGroupSurvivor(<?=args($groupingInputs)?>);
   }
 };
 
