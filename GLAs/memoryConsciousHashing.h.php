@@ -113,7 +113,7 @@ class <?=$className?> {
   }
 
   int get_segment_index(HashType hash) const {
-    HalfHashType upper_half_of_hash = hash >> 32;
+    HalfHashType upper_half_of_hash = (hash >> 32) & 0xFFFFFFFFLL;
     bool isTableSmall = <?=$numberOfSegments?> == 1;
     if (isTableSmall) {
       return 0;
@@ -127,7 +127,7 @@ class <?=$className?> {
     if (isTableSmall) {
       return 0;
     }
-    HalfHashType lower_half_of_hash = hash << 32;
+    HalfHashType lower_half_of_hash = hash & 0xFFFFFFFFLL;
     int divisor = max_value_for_half_of_hash / (<?=$bucketsPerSegment?> - 1);
     return lower_half_of_hash / divisor;
   }
