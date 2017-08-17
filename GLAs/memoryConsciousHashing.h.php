@@ -92,7 +92,7 @@ class <?=$className?> {
     }
   }
 
-  ArrayOfScoreArrayType calculate_segmented_scores() {
+  ArrayOfScoreArrayType calculate_segmented_scores_and_total_score() {
     ArrayOfScoreArrayType segmented_scores;
     auto buckets_seen = 0;
     auto segment_it = segments.begin();
@@ -102,6 +102,7 @@ class <?=$className?> {
       for (size_t i = 0; i < segment_it->size() && buckets_seen < initialNumberOfBuckets; i++) {
         long score;
         segment_it->at(i).GetResult(score);
+        total_score += score;
         array_of_scores[i] += score;
         buckets_seen++;
       }
@@ -162,8 +163,7 @@ class <?=$className?> {
   }
 
   void FinalizeState() {
-    scores = calculate_segmented_scores();
-    total_score = get_total_score(scores, initialNumberOfBuckets);
+    scores = calculate_segmented_scores_and_total_score();
   }
 
   FragmentedResultIterator<HashType>* Finalize(int fragment) {
