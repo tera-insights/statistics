@@ -80,7 +80,6 @@ class <?=$className?> {
   const float min_total_score_multiplier = <?=$minimumTotalScoreMultiplier?>;
   const uint64_t max_number_of_buckets_produced = <?=$maxNumberOfBucketsProduced?>;
   static const constexpr HashType seed = <?=$seed?>;
-  const HalfHashType max_value_for_half_of_hash = std::numeric_limits<HalfHashType>::max();
   const uint64_t initialNumberOfBuckets = <?=$initialNumberOfBuckets?>;
   
   ArrayOfArraysType segments;
@@ -112,24 +111,16 @@ class <?=$className?> {
     }
   }
 
-  int get_segment_index(HashType hash) const {    
-    bool isTableSmall = numberOfSegments == 1;
-    if (isTableSmall) {
-      return 0;
-    }
-    HalfHashType upper_half_of_hash = (hash >> 32) & 0xFFFFFFFFLL;
-    int divisor = max_value_for_half_of_hash / (numberOfSegments - 1);
-    return upper_half_of_hash / divisor;
+  int get_segment_index(HashType hash) const {
+    HashType upper_half_of_hash = (hash >> 32) & 0xFFFFFFFFLL;
+    double ratio = (upper_half_of_hash * 1.0) / (1UL << 32);
+    return ratio * numberOfSegments;
   }
 
   int get_bucket_index(HashType hash) const {
-    bool isTableSmall = bucketsPerSegment == 1;
-    if (isTableSmall) {
-      return 0;
-    }
-    HalfHashType lower_half_of_hash = hash & 0xFFFFFFFFLL;
-    int divisor = max_value_for_half_of_hash / (bucketsPerSegment - 1);
-    return lower_half_of_hash / divisor;
+    HashType lower_half_of_hash = hash & 0xFFFFFFFFLL;
+    double ratio = (lower_half_of_hash * 1.0) / (1UL << 32);
+    return ratio * bucketsPerSegment;
   }
 
  public:
