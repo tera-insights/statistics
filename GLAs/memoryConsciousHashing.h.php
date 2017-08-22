@@ -186,8 +186,6 @@ class <?=$className?> {
   }
 };
 
-using <?=$className?>_Iterator = FragmentedResultIterator<<?=$className?>::ScoreType>;
-
 <?
     return [
         'kind'           => 'GLA',
