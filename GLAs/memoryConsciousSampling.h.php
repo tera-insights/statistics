@@ -3,11 +3,8 @@
 // This version of MCS only limits the number of produced groups.
 function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
 {
-    // Class name is randomly generated
     $className = generate_name("MemoryConsciousSampling");
-
-    // Setting output types.
-    $outputs = array_combine(array_keys($outputs), $inputs);
+    $outputs = ["hashed_key" => lookupType("BASE::INT")];
 
     // The dimension of the data, i.e. how many elements are in each item.
     $dimension = count($inputs);
@@ -18,56 +15,39 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
     $initialSamplingRate = $t_args['initialSamplingRate'];
     $reductionRate = $t_args['reductionRate'];
 
-    // Array for generating inline C++ code;
-    $codeArray = array_combine(array_keys($outputs), range(0, $dimension - 1));
-
-    $debug = get_default($t_args, 'debug', 0);
-
-    $tuplesPerFragment = 200000;
+    $isDebugMode = get_default($t_args, 'debug', 0);
 
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
       'map', 'cstdlib', 'string', 'iostream'];
     $user_headers = [];
-    $lib_headers  = [];
+    $lib_headers  = ['base\HashFct.h'];
     $libraries    = ['armadillo'];
     $extra        = [];
     $properties   = ['tuples'];
-    $result_type  = ['fragment'];
+    $result_type  = ['state'];
 ?>
 
 class <?=$className?>;
 
 class <?=$className?> {
  public:
-  using KeySet = std::tuple<<?=typed($inputs)?>>;
-
-  using Map = std::map<KeySet, int>;
-
-  // For the fragmented result
-  using Iterator = struct {
-    Map::const_iterator current, end;
-    std::size_t index;
-  };
+  using HashType = uint64_t;
+  using Map = std::map<HashType, int>;
 
   const int minimum_group_size = <?=$minimumGroupSize?>;
   const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
   double samplingRate = <?=$initialSamplingRate?>;
   const double reductionRate = <?=$reductionRate?>;
-  static constexpr std::size_t kFragmentSize = <?=$tuplesPerFragment?>;
-
-  // The index used to iterate during GetNextResult;
-  double return_counter;
 
   // Maps hashed group key to the (effective) number of tuples we have seen for
   // this group. I use the word "effective" because this algorithm resamples if
   // it sees too many groups that will survive.
   Map frequency_map;
 
-  // Fields used for the fragment result type.
-  std::vector<Map::const_iterator> iterators;
+  uint64_t surviving_groups;
 
-  bool groupWillSurvive(KeySet group) {
-    return frequency_map[group] > minimum_group_size;
+  bool groupWillSurvive(HashType hash) {
+    return frequency_map[hash] > minimum_group_size;
   }
 
   int numberOfGroupsThatWillSurvive() {
@@ -81,11 +61,11 @@ class <?=$className?> {
   }
 
   bool isTooMuchMemoryUsed() {
-    return numberOfGroupsThatWillSurvive() > maximum_groups_allowed;
+    return surviving_groups > maximum_groups_allowed;
   }
 
-  bool isKeyNew(KeySet key) {
-    return frequency_map.find(key) == frequency_map.end();
+  bool isKeyNew(HashType hash) const {
+    return frequency_map.find(hash) == frequency_map.end();
   }
 
   bool shouldSampleTuple() {
@@ -93,33 +73,45 @@ class <?=$className?> {
     return random < samplingRate;
   }
 
-  KeySet get_group_key(<?=const_typed_ref_args($inputs)?>) {
-    return KeySet(<?=args($inputs)?>);
+  HashType chainedHash(<?=const_typed_ref_args($inputs)?>) const {
+    HashType result = 0;
+<?  foreach ($inputs as $index => $value) {?>
+    result = SpookyHash(Hash(<?=$index?>), result);
+<?}?>
+    return result;
+  }
+
+  void FinalizeState() {
+    while (isTooMuchMemoryUsed()) {
+      samplingRate *= reductionRate;
+      resampleMap();
+    }
   }
 
   void resampleMap() {
     for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
       auto key = it->first;
       auto originalCount = it->second;
+      if (originalCount == 0) {
+        continue;
+      }
       int newNumberSampled = 0;
       for (int trial = 0; trial < originalCount; trial++) {
         if (shouldSampleTuple()) {
           newNumberSampled++;
         }
       }
+      frequency_map[key] = newNumberSampled;
       if (newNumberSampled == 0) {
-        frequency_map.erase(key);
-      } else {
-        frequency_map[key] = newNumberSampled;
+        surviving_groups--;
       }
     }
   }
 
  public:
-  // Constructor, nothing of note.
   <?=$className?>()
-      : return_counter(0),
-        frequency_map() {
+      : frequency_map(),
+      surviving_groups(0) {
   }
 
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
@@ -127,15 +119,12 @@ class <?=$className?> {
       return;
     }
 
-    const KeySet key = get_group_key(<?=args($inputs)?>);
-    if (isKeyNew(key)) {
-      frequency_map[key] = 0;
+    const HashType hash = chainedHash(<?=args($inputs)?>);
+    if (isKeyNew(hash)) {
+      frequency_map[hash] = 0;
+      surviving_groups++;
     }
-    frequency_map[key]++;
-    if (isTooMuchMemoryUsed()) {
-      samplingRate *= reductionRate;
-      resampleMap();
-    }
+    frequency_map[hash]++;
   }
 
   // Merges `this->frequency_map` and `other->frequency_map`.
@@ -145,63 +134,25 @@ class <?=$className?> {
       auto key = it->first;
       if (isKeyNew(key)) {
         frequency_map[key] = 0;
+        surviving_groups++;
       }
       frequency_map[key] += it->second;
     }
   }
 
-  // Finalize is a dummy function for this GLA and only exists because it is
-  // required for a GLA of type multi. Setting return_counter is only a safety
-  // check as it should already be 0.
-  void Finalize() {
-    return_counter = 0;
-  }
-
-  const std::map<KeySet, int> &GetFrequencyMap() {
+  const std::map<HashType, int> &GetFrequencyMap() {
     return frequency_map;
   }
 
-  // The groups are traversed in order and the boundaries for each are stored in
-  // the iterators vector. The number of groups per fragment is determined by
-  // `$fragmentSize`. 
-  int GetNumFragments() {
-    std::size_t num_fragment = 0;
-    auto it = frequency_map.cbegin();
-    // The iterator is incremented kFragmentSize times between each boundary.
-    // Note that this loop immediately pushes back an iterator pointing to the
-    // minimal grouping.
-    for (std::size_t index = 0; it != frequency_map.cend(); ++it, index++) {
-      if (index % kFragmentSize == 0) {
-        iterators.push_back(it);
-      }
-    }
-
-    // This pushes back the past-the-end iterator, the upper boundary for the
-    // last fragment, which can have fewer than kFragmentSize groups.
-    iterators.push_back(it);
-<?  if ($debug > 0) { ?>
-    std::cout << "There are " << iterators.size() << " iterators." << std::endl;
-<?  } ?>
-    return iterators.size() - 1;
+  bool IsGroupSurvivor(<?=const_typed_ref_args($inputs)?>) const {
+    auto hash = chainedHash(<?=args($inputs)?>);
+    return !isKeyNew(hash) && frequency_map.at(hash) > 0;
   }
 
-  Iterator* Finalize(int fragment) const {
-    return new Iterator{iterators[fragment], iterators[fragment + 1], 0};
-  }
-
-  bool GetNextResult(Iterator* it, <?=typed_ref_args($outputs)?>) {
-    if (it->current == it->end) {
-      return false;
-    }
-<?  foreach (array_keys($outputs) as $index => $name) { ?>
-      <?=$name?> = std::get<<?=$index?>>(it->current->first);
-<?  } ?>
-    ++it->current;
-    return true;
+  double GetSamplingRate() const {
+    return samplingRate;
   }
 };
-
-using <?=$className?>_Iterator = <?=$className?>::Iterator;
 
 <?
     return [
@@ -216,6 +167,7 @@ using <?=$className?>_Iterator = <?=$className?>::Iterator;
         'input'          => $inputs,
         'output'         => $outputs,
         'result_type'    => $result_type,
+        'finalize_as_state' => true,
     ];
 }
 ?>
