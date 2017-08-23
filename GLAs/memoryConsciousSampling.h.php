@@ -1,5 +1,5 @@
 <?
-function Hash_To_Group_Constant_State(array $t_args) {
+function Memory_Conscious_Sampling_Constant_State(array $t_args) {
     $className = $t_args['className'];
     $sys_headers  = ['pthread.h', 'atomic'];
     $user_headers = [];
@@ -13,8 +13,8 @@ function Hash_To_Group_Constant_State(array $t_args) {
 
 class <?=$className?>ConstantState {
  private:
+  using HashType = uint64_t;
   using Map = std::map<HashType, int>;
-  using HashType = <?=$className?>::HashType;
 
   double global_samplingRate = <?=$initialSamplingRate?>;
   const double reductionRate = <?=$reductionRate?>;
@@ -52,24 +52,21 @@ class <?=$className?>ConstantState {
   void acquireWriteLock() {
     bool isLockSuccessful = pthread_rwlock_wrlock(&lock) == 0;
     if (!isLockSuccessful) {
-      throw std::runtime_error("Could not acquire write lock on Memory " + 
-        "Conscious Sampling state");
+      throw std::runtime_error("Could not acquire write lock on Memory Conscious Sampling state");
     }
   }
 
   void acquireReadLock() {
     bool isLockSuccessful = pthread_rwlock_rdlock(&lock) == 0;
     if (!isLockSuccessful) {
-      throw std::runtime_error("Could not acquire read lock on Memory " +
-        "Conscious Sampling state");
+      throw std::runtime_error("Could not acquire read lock on Memory Conscious Sampling state");
     }
   }
 
   void releaseLock() {
     bool isUnlockSuccessful = pthread_rwlock_unlock(&lock) == 0;
     if (!isUnlockSuccessful) {
-      throw std::runtime_error("Could not release lock on Memory " +
-        "Conscious Sampling state");
+      throw std::runtime_error("Could not release lock on Memory Conscious Sampling state");
     }
   }
 
@@ -108,7 +105,7 @@ class <?=$className?>ConstantState {
     return frequency_map.find(hash) == frequency_map.end();
   }
 
-  void increment_count_for_group(HashType hash) {
+  void record_group(HashType hash) {
     if (isKeyNew(hash)) {
       frequency_map[hash] = 0;
       surviving_groups++;
@@ -126,22 +123,22 @@ class <?=$className?>ConstantState {
  public:
     friend class <?=$className?>;
 
-    <?=$className?>ConstantState()
-      : {
-        pthread_rwlock_init(&lock, NULL);
-      }
+    <?=$className?>ConstantState() {
+      pthread_rwlock_init(&lock, NULL);
+    }
 
-    void AddItem(HashType hash) {
+    void AddItem(HashType hash_of_group) {
       acquireReadLock();
-      if (!isBernoulliSuccess(global_samplingRate)) {
+      double sampling_rate_during_step = global_samplingRate;
+      bool isItemSampled = isBernoulliSuccess(sampling_rate_during_step);
+      if (!isItemSampled) {
         releaseLock();
         return;
       }
   
-      increment_count_for_group(hash);
-      double rate_during_add_item = global_samplingRate;
+      record_group(hash_of_group);
       releaseLock();
-      queue_resample_if_necessary(rate_during_add_item);
+      queue_resample_if_necessary(sampling_rate_during_step);
     }
 
     bool IsGroupSurvivor(HashType hash) {
@@ -165,7 +162,6 @@ class <?=$className?>ConstantState {
     ];
 }
 
-<?
 // This version of MCS only limits the number of produced groups.
 function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
 {
@@ -186,18 +182,24 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
 
 class <?=$className?>;
 
-<?  $constantState = lookupResource(
-  "statistics::Memory_Conscious_Sampling_Constant_State", ['className' => $className, 'states' => $states]
+<?  $state = lookupResource(
+  "statistics::Memory_Conscious_Sampling_Constant_State", [
+    'className' => $className,
+    'minimumGroupSize' => $t_args['minimumGroupSize'],
+    'maximumGroupsAllowed' => $t_args['maximumGroupsAllowed'],
+    'initialSamplingRate' => $t_args['initialSamplingRate'],
+    'reductionRate' => $t_args['reductionRate'],
+  ]
 ); ?>
 
 class <?=$className?> {
  public:
   using HashType = uint64_t;
-  using ConstantState = <?=$constantState?>;
-  const <?=$constantState?>& constant_state;
+  using State = <?=$state?>;
+  State& state;
 
-  <?=$className?>(const <?=$constantState?>& state)
-  : constant_state(state) {
+  <?=$className?>(const State& const_state)
+    :state (*(State *)(&const_state)) {
   }
 
   HashType chainedHash(<?=const_typed_ref_args($inputs)?>) const {
@@ -212,21 +214,16 @@ class <?=$className?> {
   }
 
  public:
-  <?=$className?>()
-      : frequency_map(),
-      surviving_groups(0) {
-  }
-
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     const HashType hash = chainedHash(<?=args($inputs)?>);
-    constant_state.AddItem(hash);
+    state.AddItem(hash);
   }
 
   void AddState(<?=$className?>& other)  {}
 
   bool IsGroupSurvivor(<?=const_typed_ref_args($inputs)?>) const {
     auto hash = chainedHash(<?=args($inputs)?>);
-    return constant_state.IsGroupSurvivor(hash);
+    return state.IsGroupSurvivor(hash);
   }
 };
 
@@ -244,6 +241,7 @@ class <?=$className?> {
         'output'         => $outputs,
         'result_type'    => $result_type,
         'finalize_as_state' => true,
+        'generated_state' => $state,
     ];
 }
 ?>
