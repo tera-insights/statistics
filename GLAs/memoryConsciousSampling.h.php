@@ -1,3 +1,169 @@
+<?
+function Hash_To_Group_Constant_State(array $t_args) {
+    $className = $t_args['className'];
+    $sys_headers  = ['pthread.h', 'atomic'];
+    $user_headers = [];
+    $lib_headers  = [];
+    $libraries    = [];
+    $minimumGroupSize = $t_args['minimumGroupSize'];
+    $maximumGroupsAllowed = $t_args['maximumGroupsAllowed'];
+    $initialSamplingRate = $t_args['initialSamplingRate'];
+    $reductionRate = $t_args['reductionRate'];
+?>
+
+class <?=$className?>ConstantState {
+ private:
+  using Map = std::map<HashType, int>;
+  using HashType = <?=$className?>::HashType;
+
+  double global_samplingRate = <?=$initialSamplingRate?>;
+  const double reductionRate = <?=$reductionRate?>;
+  const int minimum_group_size = <?=$minimumGroupSize?>;
+  const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
+
+  // Maps hashed group key to the (effective) number of tuples we have seen for
+  // this group. I use the word "effective" because this algorithm resamples if
+  // it sees too many groups that will survive.
+  Map frequency_map;
+
+  std::atomic_ulong surviving_groups;
+
+  pthread_rwlock_t lock;
+
+  bool isTooMuchMemoryUsed() {
+    return surviving_groups > maximum_groups_allowed;
+  }
+
+  bool isBernoulliSuccess(double successRate) {
+    double random = rand() * 1.0 / RAND_MAX;
+    return random < successRate;
+  }
+
+  int getNumberSampled(int populationSize, double samplingRate) {
+    int sampled = 0;
+    for (int trial = 0; trial < populationSize; trial++) {
+      if (isBernoulliSuccess(samplingRate)) {
+        sampled++;
+      }
+    }
+    return sampled;
+  }
+
+  void acquireWriteLock() {
+    bool isLockSuccessful = pthread_rwlock_wrlock(&lock) == 0;
+    if (!isLockSuccessful) {
+      throw std::runtime_error("Could not acquire write lock on Memory " + 
+        "Conscious Sampling state");
+    }
+  }
+
+  void acquireReadLock() {
+    bool isLockSuccessful = pthread_rwlock_rdlock(&lock) == 0;
+    if (!isLockSuccessful) {
+      throw std::runtime_error("Could not acquire read lock on Memory " +
+        "Conscious Sampling state");
+    }
+  }
+
+  void releaseLock() {
+    bool isUnlockSuccessful = pthread_rwlock_unlock(&lock) == 0;
+    if (!isUnlockSuccessful) {
+      throw std::runtime_error("Could not release lock on Memory " +
+        "Conscious Sampling state");
+    }
+  }
+
+  void resampleWithGlobalSamplingRate() {
+    for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
+      auto key = it->first;
+      auto originalCount = it->second;
+      if (originalCount == 0) {
+        continue;
+      }
+      int sampleSize = getNumberSampled(originalCount, global_samplingRate);
+      frequency_map[key] = sampleSize;
+      if (sampleSize == 0) {
+        surviving_groups--;
+      }
+    }
+  }
+
+  void resampleMap(double samplingRate) {
+    acquireWriteLock();
+    if (samplingRate <= global_samplingRate) {
+      releaseLock();
+      return;
+    }
+
+    global_samplingRate = samplingRate;
+    resampleWithGlobalSamplingRate();
+    releaseLock();
+  }
+
+  bool groupWillSurvive(HashType hash) {
+    return frequency_map[hash] > minimum_group_size;
+  }
+
+  bool isKeyNew(HashType hash) const {
+    return frequency_map.find(hash) == frequency_map.end();
+  }
+
+  void increment_count_for_group(HashType hash) {
+    if (isKeyNew(hash)) {
+      frequency_map[hash] = 0;
+      surviving_groups++;
+    }
+    frequency_map[hash]++;
+  }
+
+  void queue_resample_if_necessary(double rate) {
+    if (isTooMuchMemoryUsed()) {
+      double newSamplingRate = rate * reductionRate;
+      resampleMap(newSamplingRate);
+    }
+  }
+
+ public:
+    friend class <?=$className?>;
+
+    <?=$className?>ConstantState()
+      : {
+        pthread_rwlock_init(&lock, NULL);
+      }
+
+    void AddItem(HashType hash) {
+      acquireReadLock();
+      if (!isBernoulliSuccess(global_samplingRate)) {
+        releaseLock();
+        return;
+      }
+  
+      increment_count_for_group(hash);
+      double rate_during_add_item = global_samplingRate;
+      releaseLock();
+      queue_resample_if_necessary(rate_during_add_item);
+    }
+
+    bool IsGroupSurvivor(HashType hash) {
+      return !isKeyNew(hash) && frequency_map.at(hash) > 0;
+    }
+
+    double GetSamplingRate() const {
+      return global_samplingRate;
+    }
+};
+
+<?
+    return [
+        'kind'           => 'RESOURCE',
+        'name'           => $className . 'ConstantState',
+        'system_headers' => $sys_headers,
+        'user_headers'   => $user_headers,
+        'lib_headers'    => $lib_headers,
+        'libraries'      => $libraries,
+        'configurable'   => false,
+    ];
+}
 
 <?
 // This version of MCS only limits the number of produced groups.
@@ -5,15 +171,6 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
 {
     $className = generate_name("MemoryConsciousSampling");
     $outputs = ["hashed_key" => lookupType("BASE::INT")];
-
-    // The dimension of the data, i.e. how many elements are in each item.
-    $dimension = count($inputs);
-
-    // Processing of template arguments
-    $minimumGroupSize = $t_args['minimumGroupSize'];
-    $maximumGroupsAllowed = $t_args['maximumGroupsAllowed'];
-    $initialSamplingRate = $t_args['initialSamplingRate'];
-    $reductionRate = $t_args['reductionRate'];
 
     $isDebugMode = get_default($t_args, 'debug', 0);
 
@@ -29,48 +186,18 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
 
 class <?=$className?>;
 
+<?  $constantState = lookupResource(
+  "statistics::Memory_Conscious_Sampling_Constant_State", ['className' => $className, 'states' => $states]
+); ?>
+
 class <?=$className?> {
  public:
   using HashType = uint64_t;
-  using Map = std::map<HashType, int>;
+  using ConstantState = <?=$constantState?>;
+  const <?=$constantState?>& constant_state;
 
-  const int minimum_group_size = <?=$minimumGroupSize?>;
-  const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
-  double samplingRate = <?=$initialSamplingRate?>;
-  const double reductionRate = <?=$reductionRate?>;
-
-  // Maps hashed group key to the (effective) number of tuples we have seen for
-  // this group. I use the word "effective" because this algorithm resamples if
-  // it sees too many groups that will survive.
-  Map frequency_map;
-
-  uint64_t surviving_groups;
-
-  bool groupWillSurvive(HashType hash) {
-    return frequency_map[hash] > minimum_group_size;
-  }
-
-  int numberOfGroupsThatWillSurvive() {
-    int survivors = 0;
-    for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
-      if (groupWillSurvive(it->first)) {
-        survivors++;
-      }
-    }
-    return survivors;
-  }
-
-  bool isTooMuchMemoryUsed() {
-    return surviving_groups > maximum_groups_allowed;
-  }
-
-  bool isKeyNew(HashType hash) const {
-    return frequency_map.find(hash) == frequency_map.end();
-  }
-
-  bool shouldSampleTuple() {
-    double random = rand() * 1.0 / RAND_MAX;
-    return random < samplingRate;
+  <?=$className?>(const <?=$constantState?>& state)
+  : constant_state(state) {
   }
 
   HashType chainedHash(<?=const_typed_ref_args($inputs)?>) const {
@@ -82,30 +209,6 @@ class <?=$className?> {
   }
 
   void FinalizeState() {
-    while (isTooMuchMemoryUsed()) {
-      samplingRate *= reductionRate;
-      resampleMap();
-    }
-  }
-
-  void resampleMap() {
-    for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
-      auto key = it->first;
-      auto originalCount = it->second;
-      if (originalCount == 0) {
-        continue;
-      }
-      int newNumberSampled = 0;
-      for (int trial = 0; trial < originalCount; trial++) {
-        if (shouldSampleTuple()) {
-          newNumberSampled++;
-        }
-      }
-      frequency_map[key] = newNumberSampled;
-      if (newNumberSampled == 0) {
-        surviving_groups--;
-      }
-    }
   }
 
  public:
@@ -115,42 +218,15 @@ class <?=$className?> {
   }
 
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
-    if (!shouldSampleTuple()) {
-      return;
-    }
-
     const HashType hash = chainedHash(<?=args($inputs)?>);
-    if (isKeyNew(hash)) {
-      frequency_map[hash] = 0;
-      surviving_groups++;
-    }
-    frequency_map[hash]++;
+    constant_state.AddItem(hash);
   }
 
-  // Merges `this->frequency_map` and `other->frequency_map`.
-  void AddState(<?=$className?>& other)  {
-    auto other_map = other.GetFrequencyMap();
-    for (auto it = other_map.begin(); it != other_map.end(); it++) {
-      auto key = it->first;
-      if (isKeyNew(key)) {
-        frequency_map[key] = 0;
-        surviving_groups++;
-      }
-      frequency_map[key] += it->second;
-    }
-  }
-
-  const std::map<HashType, int> &GetFrequencyMap() {
-    return frequency_map;
-  }
+  void AddState(<?=$className?>& other)  {}
 
   bool IsGroupSurvivor(<?=const_typed_ref_args($inputs)?>) const {
     auto hash = chainedHash(<?=args($inputs)?>);
-    return !isKeyNew(hash) && frequency_map.at(hash) > 0;
-  }
-
-  double GetSamplingRate() const {
-    return samplingRate;
+    return constant_state.IsGroupSurvivor(hash);
   }
 };
 
