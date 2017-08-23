@@ -1,7 +1,7 @@
 <?
 function Memory_Conscious_Sampling_Constant_State(array $t_args) {
     $className = $t_args['className'];
-    $sys_headers  = ['pthread.h', 'atomic'];
+    $sys_headers  = ['pthread.h', 'atomic', 'Random.h'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = [];
@@ -35,8 +35,7 @@ class <?=$className?>ConstantState {
   }
 
   bool isBernoulliSuccess(double successRate) {
-    double random = rand() * 1.0 / RAND_MAX;
-    return random < successRate;
+    return RandDouble() < successRate;
   }
 
   int getNumberSampled(int populationSize, double samplingRate) {
