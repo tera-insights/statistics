@@ -87,7 +87,7 @@ class <?=$className?>ConstantState {
 
   void resampleMap(double samplingRate) {
     acquireWriteLock();
-    if (samplingRate <= global_samplingRate) {
+    if (samplingRate >= global_samplingRate) {
       releaseLock();
       return;
     }
