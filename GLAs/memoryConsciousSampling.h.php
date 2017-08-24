@@ -16,7 +16,7 @@ class <?=$className?>ConstantState {
   using HashType = uint64_t;
   using Map = std::map<HashType, int>;
 
-  double global_samplingRate = <?=$initialSamplingRate?>;
+  double global_samplingRate;
   const double reductionRate = <?=$reductionRate?>;
   const int minimum_group_size = <?=$minimumGroupSize?>;
   const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
@@ -69,17 +69,19 @@ class <?=$className?>ConstantState {
     }
   }
 
-  void resampleWithGlobalSamplingRate() {
+  void resampleWithReductionRate() {
     for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
       auto key = it->first;
       auto originalCount = it->second;
       if (originalCount == 0) {
         continue;
       }
-      int sampleSize = getNumberSampled(originalCount, global_samplingRate);
-      frequency_map[key] = sampleSize;
+      int sampleSize = getNumberSampled(originalCount, reductionRate);
       if (sampleSize == 0) {
         surviving_groups--;
+        it = frequency_map.erase(it);
+      } else {
+        frequency_map[key] = sampleSize;
       }
     }
   }
@@ -92,7 +94,7 @@ class <?=$className?>ConstantState {
     }
 
     global_samplingRate = samplingRate;
-    resampleWithGlobalSamplingRate();
+    resampleWithReductionRate();
     releaseLock();
   }
 
@@ -122,7 +124,10 @@ class <?=$className?>ConstantState {
  public:
     friend class <?=$className?>;
 
-    <?=$className?>ConstantState() {
+    <?=$className?>ConstantState()
+      : global_samplingRate(<?=$initialSamplingRate?>),
+        surviving_groups(0),
+        frequency_map{} {
       pthread_rwlock_init(&lock, NULL);
     }
 
