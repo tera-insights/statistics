@@ -1,7 +1,9 @@
 <?
 function Memory_Conscious_Sampling_Constant_State(array $t_args) {
     $className = $t_args['className'];
-    $sys_headers  = ['pthread.h', 'atomic', 'Random.h'];
+    $sys_headers  = ['Random.h',
+      'boost/thread/locks.hpp',
+      'boost/thread/shared_mutex.hpp'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = [];
@@ -14,7 +16,7 @@ function Memory_Conscious_Sampling_Constant_State(array $t_args) {
 class <?=$className?>ConstantState {
  private:
   using HashType = uint64_t;
-  using Map = std::map<HashType, int>;
+  using Map = std::unordered_map<HashType, int>;
 
   double global_samplingRate;
   const double reductionRate = <?=$reductionRate?>;
@@ -26,12 +28,10 @@ class <?=$className?>ConstantState {
   // it sees too many groups that will survive.
   Map frequency_map;
 
-  std::atomic_ulong surviving_groups;
-
-  pthread_rwlock_t lock;
+  boost::shared_mutex mutex;
 
   bool isTooMuchMemoryUsed() {
-    return surviving_groups > maximum_groups_allowed;
+    return frequency_map.size() > maximum_groups_allowed;
   }
 
   bool isBernoulliSuccess(double successRate) {
@@ -48,28 +48,8 @@ class <?=$className?>ConstantState {
     return sampled;
   }
 
-  void acquireWriteLock() {
-    bool isLockSuccessful = pthread_rwlock_wrlock(&lock) == 0;
-    if (!isLockSuccessful) {
-      throw std::runtime_error("Could not acquire write lock on Memory Conscious Sampling state");
-    }
-  }
-
-  void acquireReadLock() {
-    bool isLockSuccessful = pthread_rwlock_rdlock(&lock) == 0;
-    if (!isLockSuccessful) {
-      throw std::runtime_error("Could not acquire read lock on Memory Conscious Sampling state");
-    }
-  }
-
-  void releaseLock() {
-    bool isUnlockSuccessful = pthread_rwlock_unlock(&lock) == 0;
-    if (!isUnlockSuccessful) {
-      throw std::runtime_error("Could not release lock on Memory Conscious Sampling state");
-    }
-  }
-
   void resampleWithReductionRate() {
+    std::vector<HashType> keys_to_erase;
     for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
       auto key = it->first;
       auto originalCount = it->second;
@@ -77,25 +57,24 @@ class <?=$className?>ConstantState {
         continue;
       }
       int sampleSize = getNumberSampled(originalCount, reductionRate);
+      frequency_map[key] = sampleSize;
       if (sampleSize == 0) {
-        surviving_groups--;
-        it = frequency_map.erase(it);
-      } else {
-        frequency_map[key] = sampleSize;
+        keys_to_erase.push_back(key);
       }
+    }
+    for (HashType key : keys_to_erase) {
+      frequency_map.erase(key);
     }
   }
 
   void resampleMap(double samplingRate) {
-    acquireWriteLock();
+    boost::unique_lock<boost::shared_mutex> lock(mutex);
     if (samplingRate >= global_samplingRate) {
-      releaseLock();
       return;
     }
 
     global_samplingRate = samplingRate;
     resampleWithReductionRate();
-    releaseLock();
   }
 
   bool groupWillSurvive(HashType hash) {
@@ -104,14 +83,6 @@ class <?=$className?>ConstantState {
 
   bool isKeyNew(HashType hash) const {
     return frequency_map.find(hash) == frequency_map.end();
-  }
-
-  void record_group(HashType hash) {
-    if (isKeyNew(hash)) {
-      frequency_map[hash] = 0;
-      surviving_groups++;
-    }
-    frequency_map[hash]++;
   }
 
   void queue_resample_if_necessary(double rate) {
@@ -126,22 +97,24 @@ class <?=$className?>ConstantState {
 
     <?=$className?>ConstantState()
       : global_samplingRate(<?=$initialSamplingRate?>),
-        surviving_groups(0),
         frequency_map{} {
-      pthread_rwlock_init(&lock, NULL);
     }
 
     void AddItem(HashType hash_of_group) {
-      acquireReadLock();
+      boost::upgrade_lock<boost::shared_mutex> lock(mutex);
       double sampling_rate_during_step = global_samplingRate;
       bool isItemSampled = isBernoulliSuccess(sampling_rate_during_step);
       if (!isItemSampled) {
-        releaseLock();
         return;
       }
   
-      record_group(hash_of_group);
-      releaseLock();
+      if (isKeyNew(hash_of_group)) {
+        const boost::upgrade_to_unique_lock<boost::shared_mutex> unique(lock);
+        frequency_map[hash_of_group]++;
+      } else {
+        frequency_map[hash_of_group]++;
+      }
+      lock.unlock();
       queue_resample_if_necessary(sampling_rate_during_step);
     }
 
@@ -178,7 +151,7 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
       'map', 'cstdlib', 'string', 'iostream'];
     $user_headers = [];
     $lib_headers  = ['base\HashFct.h'];
-    $libraries    = ['armadillo'];
+    $libraries    = ['armadillo', 'boost_thread'];
     $extra        = [];
     $properties   = ['tuples'];
     $result_type  = ['state'];
