@@ -3,7 +3,9 @@ function Memory_Conscious_Sampling_Constant_State(array $t_args) {
     $className = $t_args['className'];
     $sys_headers  = ['Random.h',
       'boost/thread/locks.hpp',
-      'boost/thread/shared_mutex.hpp'];
+      'boost/thread/shared_mutex.hpp',
+      'atomic',
+      'unordered_map'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = [];
@@ -68,11 +70,6 @@ class <?=$className?>ConstantState {
   }
 
   void resampleMap(double samplingRate) {
-    boost::unique_lock<boost::shared_mutex> lock(mutex);
-    if (samplingRate >= global_samplingRate) {
-      return;
-    }
-
     global_samplingRate = samplingRate;
     resampleWithReductionRate();
   }
@@ -100,26 +97,22 @@ class <?=$className?>ConstantState {
         frequency_map{} {
     }
 
-    void AddItem(HashType hash_of_group) {
-      boost::upgrade_lock<boost::shared_mutex> lock(mutex);
+    void AddMap(const Map &other_map) {
+      boost::unique_lock<boost::shared_mutex> lock(mutex);
       double sampling_rate_during_step = global_samplingRate;
-      bool isItemSampled = isBernoulliSuccess(sampling_rate_during_step);
-      if (!isItemSampled) {
-        return;
+      for (auto it = other_map.begin(); it != other_map.end(); it++) {
+        bool isItemSampled = isBernoulliSuccess(sampling_rate_during_step);
+        if (!isItemSampled) {
+          continue;
+        }
+        frequency_map[hash] += frequency;
       }
-  
-      if (isKeyNew(hash_of_group)) {
-        const boost::upgrade_to_unique_lock<boost::shared_mutex> unique(lock);
-        frequency_map[hash_of_group]++;
-      } else {
-        frequency_map[hash_of_group]++;
-      }
-      lock.unlock();
+
       queue_resample_if_necessary(sampling_rate_during_step);
     }
 
     bool IsGroupSurvivor(HashType hash) {
-      return !isKeyNew(hash) && frequency_map.at(hash) > 0;
+      return !isKeyNew(hash) && frequency_map[hash] > 0;
     }
 
     double GetSamplingRate() const {
@@ -148,7 +141,7 @@ function Memory_Conscious_Sampling(array $t_args, array $inputs, array $outputs)
     $isDebugMode = get_default($t_args, 'debug', 0);
 
     $sys_headers  = ['math.h', 'armadillo', 'random', 'vector', 'stdexcept',
-      'map', 'cstdlib', 'string', 'iostream'];
+      'map', 'cstdlib', 'string', 'iostream', 'unordered_map'];
     $user_headers = [];
     $lib_headers  = ['base\HashFct.h'];
     $libraries    = ['armadillo', 'boost_thread'];
@@ -172,8 +165,11 @@ class <?=$className?>;
 class <?=$className?> {
  public:
   using HashType = uint64_t;
+  using Map = std::unordered_map<HashType, int>;
   using State = <?=$state?>;
   State& state;
+  
+  Map frequency_map;
 
   <?=$className?>(const State& const_state)
     :state (*(State *)(&const_state)) {
@@ -193,7 +189,7 @@ class <?=$className?> {
  public:
   void AddItem(<?=const_typed_ref_args($inputs)?>) {
     const HashType hash = chainedHash(<?=args($inputs)?>);
-    state.AddItem(hash);
+    frequency_map[hash]++;
   }
 
   void AddState(<?=$className?>& other)  {}
@@ -201,6 +197,11 @@ class <?=$className?> {
   bool IsGroupSurvivor(<?=const_typed_ref_args($inputs)?>) const {
     auto hash = chainedHash(<?=args($inputs)?>);
     return state.IsGroupSurvivor(hash);
+  }
+
+  void ChunkBoundary(void) {
+    state.AddMap(frequency_map);
+    frequency_map.clear();
   }
 };
 
