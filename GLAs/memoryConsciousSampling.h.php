@@ -38,8 +38,8 @@ class <?=$className?>ConstantState {
   }
 
   void resampleWithReductionRate() {
-    std::vector<HashType> keys_to_erase;
-    for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
+    auto it = frequency_map.begin();
+    while (it != frequency_map.end()) {
       auto key = it->first;
       auto originalCount = it->second;
       if (originalCount == 0) {
@@ -47,13 +47,15 @@ class <?=$className?>ConstantState {
       }
       std::binomial_distribution<int> distribution(originalCount,
         reductionRate);
-      frequency_map[key] = distribution(generator);
-      if (frequency_map[key] == 0) {
-        keys_to_erase.push_back(key);
+      int newSampleSize = distribution(generator);
+      if (newSampleSize == 0) {
+        it = frequency_map.erase(it);
+      } else {
+        frequency_map[key] = newSampleSize;
       }
-    }
-    for (HashType key : keys_to_erase) {
-      frequency_map.erase(key);
+      if (it != frequency_map.end()) {
+        it++;
+      }
     }
   }
 
@@ -74,6 +76,7 @@ class <?=$className?>ConstantState {
     while (isTooMuchMemoryUsed()) {
       double newSamplingRate = rate * reductionRate;
       resampleMap(newSamplingRate);
+      std::cout << "map size = " << frequency_map.size() << std::endl;
     }
   }
 
@@ -92,7 +95,10 @@ class <?=$className?>ConstantState {
       for (auto it = other_map.begin(); it != other_map.end(); it++) {
         std::binomial_distribution<int> distribution(it->second,
           sampling_rate_during_step);
-        frequency_map[it->first] += distribution(generator);
+        int sampleSize = distribution(generator);
+        if (sampleSize > 0) {
+          frequency_map[it->first] += sampleSize;
+        }
       }
 
       queue_resample_if_necessary(sampling_rate_during_step);
