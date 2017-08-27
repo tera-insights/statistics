@@ -185,7 +185,12 @@ class <?=$className?> {
     frequency_map[hash]++;
   }
 
-  void AddState(<?=$className?>& other)  {}
+  void AddState(const <?=$className?>& other) {
+    auto other_map
+    for (auto it = other_map.begin(); it != other_map.end(); it++) {
+      frequency_map[it->first] += it->second;
+    }
+  }
 
   bool IsGroupSurvivor(<?=const_typed_ref_args($inputs)?>) const {
     auto hash = chainedHash(<?=args($inputs)?>);
@@ -195,6 +200,10 @@ class <?=$className?> {
   void ChunkBoundary() {
     state.AddMap(frequency_map);
     frequency_map.clear();
+  }
+
+  Map GetMap() const {
+    return frequency_map;
   }
 };
 
