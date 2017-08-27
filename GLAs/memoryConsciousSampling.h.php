@@ -24,6 +24,7 @@ class <?=$className?>ConstantState {
   const double reductionRate = <?=$reductionRate?>;
   const int minimum_group_size = <?=$minimumGroupSize?>;
   const int maximum_groups_allowed = <?=$maximumGroupsAllowed?>;
+  std::default_random_engine generator;
 
   // Maps hashed group key to the (effective) number of tuples we have seen for
   // this group. I use the word "effective" because this algorithm resamples if
@@ -36,20 +37,6 @@ class <?=$className?>ConstantState {
     return frequency_map.size() > maximum_groups_allowed;
   }
 
-  bool isBernoulliSuccess(double successRate) {
-    return RandDouble() < successRate;
-  }
-
-  int getNumberSampled(int populationSize, double samplingRate) {
-    int sampled = 0;
-    for (int trial = 0; trial < populationSize; trial++) {
-      if (isBernoulliSuccess(samplingRate)) {
-        sampled++;
-      }
-    }
-    return sampled;
-  }
-
   void resampleWithReductionRate() {
     std::vector<HashType> keys_to_erase;
     for (auto it = frequency_map.begin(); it != frequency_map.end(); it++) {
@@ -58,9 +45,10 @@ class <?=$className?>ConstantState {
       if (originalCount == 0) {
         continue;
       }
-      int sampleSize = getNumberSampled(originalCount, reductionRate);
-      frequency_map[key] = sampleSize;
-      if (sampleSize == 0) {
+      std::binomial_distribution<int> distribution(originalCount,
+        reductionRate);
+      frequency_map[key] = distribution(generator);
+      if (frequency_map[key] == 0) {
         keys_to_erase.push_back(key);
       }
     }
@@ -94,18 +82,17 @@ class <?=$className?>ConstantState {
 
     <?=$className?>ConstantState()
       : global_samplingRate(<?=$initialSamplingRate?>),
-        frequency_map{} {
+        frequency_map{},
+        generator(RandInt()) {
     }
 
     void AddMap(const Map &other_map) {
       boost::unique_lock<boost::shared_mutex> lock(mutex);
       double sampling_rate_during_step = global_samplingRate;
       for (auto it = other_map.begin(); it != other_map.end(); it++) {
-        bool isItemSampled = isBernoulliSuccess(sampling_rate_during_step);
-        if (!isItemSampled) {
-          continue;
-        }
-        frequency_map[hash] += frequency;
+        std::binomial_distribution<int> distribution(it->second,
+          sampling_rate_during_step);
+        frequency_map[it->first] += distribution(generator);
       }
 
       queue_resample_if_necessary(sampling_rate_during_step);
@@ -199,7 +186,7 @@ class <?=$className?> {
     return state.IsGroupSurvivor(hash);
   }
 
-  void ChunkBoundary(void) {
+  void ChunkBoundary() {
     state.AddMap(frequency_map);
     frequency_map.clear();
   }
@@ -219,6 +206,7 @@ class <?=$className?> {
         'output'         => $outputs,
         'result_type'    => $result_type,
         'finalize_as_state' => true,
+        'chunk_boundary' => true,
         'generated_state' => $state,
     ];
 }
