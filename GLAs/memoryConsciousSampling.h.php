@@ -71,7 +71,7 @@ class <?=$className?>ConstantState {
   }
 
   void queue_resample_if_necessary(double rate) {
-    if (isTooMuchMemoryUsed()) {
+    while (isTooMuchMemoryUsed()) {
       double newSamplingRate = rate * reductionRate;
       resampleMap(newSamplingRate);
     }
