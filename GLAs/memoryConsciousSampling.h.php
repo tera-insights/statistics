@@ -186,7 +186,7 @@ class <?=$className?> {
   }
 
   void AddState(const <?=$className?>& other) {
-    auto other_map
+    auto other_map = other.GetMap();
     for (auto it = other_map.begin(); it != other_map.end(); it++) {
       frequency_map[it->first] += it->second;
     }
