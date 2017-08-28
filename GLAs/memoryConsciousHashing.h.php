@@ -82,14 +82,14 @@ class <?=$className?>ConstantState {
     }
 
     uint64_t estimateCardinality(ScoreType min) const {
-      std::vector<RegisterType> registers = findRegistersWithMinimumScore(min);
-      auto size = registers.size();
+      auto big_registers = findRegistersWithMinimumScore(min);
+      auto size = big_registers.size();
       double alpha = .7213 / (1 + 1.079 / size);
-      uint64_t raw_estimate = alpha * size * size * calculate_indicator_function(registers);
+      uint64_t raw_estimate = alpha * size * size * calculate_indicator_function(big_registers);
       uint64_t small_size_upper_bound = 2.5 * size;
       uint64_t intermediate_size_upper_bound = get_upper(size) * get_correction_factor(size);
       if (raw_estimate <= small_size_upper_bound) {
-        auto zeroCount = count_if(registers.begin(), registers.end(),
+        auto zeroCount = count_if(big_registers.begin(), big_registers.end(),
           [](RegisterType rt) { return rt == 0; });
         if (zeroCount > 0) {
           return size * log(size * 1.0 / zeroCount);
@@ -99,7 +99,7 @@ class <?=$className?>ConstantState {
       } else if (raw_estimate <= intermediate_size_upper_bound) {
         return raw_estimate;
       } else {
-        return -1 * upper * log(1 - raw_estimate / upper);
+        return -1 * get_upper(size) * log(1 - raw_estimate / get_upper(size));
       }
     }
 
