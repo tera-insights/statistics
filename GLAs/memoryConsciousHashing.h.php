@@ -6,7 +6,6 @@ function Memory_Conscious_Hashing_Constant_State(array $t_args) {
     $user_headers = [];
     $lib_headers  = ['statistics\MemoryEstimators.h'];
     $libraries    = [];
-    $maximumGroupsProduced = $t_args['maximumGroupsProduced'];
     $numberOfBuckets = $t_args['numberOfBuckets'];
     $scoreType = $t_args['scoreType'];
 ?>
@@ -21,13 +20,16 @@ class <?=$className?>ConstantState {
   using RegisterArray = std::array<RegisterType, <?=$numberOfBuckets?>>;
 
   ScoreArray scores;
-  AtomicScoreType minimum_score;
+  double minimum_score;
 
   AtomicScoreType total_score;
 
   RegisterArray registers;
 
-  int bits_used_for_hashing = 35;
+  double minimum_total_score_multiplier = <?=$t_args['minimumTotalScoreMultiplier']?>;
+
+  static constexpr int bits_used_for_hashing = 35;
+  static constexpr uint64_t maximum_groups_produced = <?=$t_args['maximumGroupsProduced']?>;
 
   uint64_t get_bucket_index(HashType hash) const {
     HashType shifted = hash >> (64 - bits_used_for_hashing);
@@ -44,7 +46,7 @@ class <?=$className?>ConstantState {
     friend class <?=$className?>;
 
     <?=$className?>ConstantState()
-      : minimum_score(0),
+      : minimum_score(0.0),
         total_score(0) {
     }
 
@@ -104,7 +106,14 @@ class <?=$className?>ConstantState {
     }
 
     void Finalize() {
-      std::printf("cardinality = %ld\n", estimateCardinality(0));
+      minimum_score = total_score * minimum_total_score_multiplier;
+      uint64_t current_cardinality = estimateCardinality(minimum_score);
+      while (current_cardinality > maximum_groups_produced) {
+        std::printf("cardinality = %ld\n", current_cardinality);
+        minimum_score *= 1.1;
+        current_cardinality = estimateCardinality(minimum_score);
+      }
+      std::printf("cardinality = %ld\n", current_cardinality);
     }
 };
 
