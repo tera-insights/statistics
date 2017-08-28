@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cassert>
 #include <list>
+#include <cmath>
 
 void test_get_total_score_on_ints() {
   std::vector<std::array<int, 3>> entries;
@@ -66,12 +67,27 @@ void test_build_result_iterators() {
   assert(elements_seen == 6);
 }
 
+void test_hyper_log_log_estimator() {
+  assert(get_index_of_leftmost_one(1UL << 63) == 1);
+  assert(get_index_of_leftmost_one(1UL << 60) == 4);
+  assert(get_index_of_leftmost_one(0) == 65);
+  assert(get_index_of_leftmost_one(0b0101) == 62);
+}
+
+void test_get_upper() {
+  assert(get_upper(1UL << 32) == (1UL << 32));
+  assert(get_upper(pow(10, 10) == (1UL << 33)));
+  assert(get_upper(pow(10, 8) == (1UL << 32)));
+}
+
 int main() {
   test_get_total_score_on_ints();
   test_count_buckets();
   test_keep_if_big_enough_100_percent_multiplier();
   test_keep_if_big_enough_keep_one_element_then_filter_again();
   test_build_result_iterators();
+  test_hyper_log_log_estimator();
+  test_get_upper();
   std::cout << "All good!" << std::endl;
   return 0;
 }

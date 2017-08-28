@@ -2,9 +2,9 @@
 // Copyright 2017 Tera Insights, LLC. All Rights Reserved.
 function Memory_Conscious_Hashing_Constant_State(array $t_args) {
     $className = $t_args['className'];
-    $sys_headers  = ['atomic', 'array', 'unordered_map', 'cstdint'];
+    $sys_headers  = ['atomic', 'array', 'unordered_map', 'cstdint', 'algorithm'];
     $user_headers = [];
-    $lib_headers  = [];
+    $lib_headers  = ['statistics\MemoryEstimators.h'];
     $libraries    = [];
     $maximumGroupsProduced = $t_args['maximumGroupsProduced'];
     $numberOfBuckets = $t_args['numberOfBuckets'];
@@ -14,22 +14,30 @@ function Memory_Conscious_Hashing_Constant_State(array $t_args) {
 class <?=$className?>ConstantState {
  private:
   using HashType = uint64_t;
-  using AtomicScoreType = std::atomic<<?=$scoreType?>>;
-  using ScoreArray = std::array<<?=$scoreType?>, <?=$numberOfBuckets?>>;
+  using ScoreType = <?=$scoreType?>;
+  using AtomicScoreType = std::atomic<ScoreType>;
+  using ScoreArray = std::array<ScoreType, <?=$numberOfBuckets?>>;
+  using RegisterType = uint8_t;
+  using RegisterArray = std::array<RegisterType, <?=$numberOfBuckets?>>;
 
   ScoreArray scores;
   AtomicScoreType minimum_score;
 
   AtomicScoreType total_score;
 
+  RegisterArray registers;
+
+  int bits_used_for_hashing = 35;
+
   uint64_t get_bucket_index(HashType hash) const {
-    double ratio = (hash * 1.0) / UINT64_MAX;
-    uint64_t product = scores.size() * ratio;
-    if (product == scores.size()) {
-      return scores.size() - 1;
-    } else {
-      return product;
-    }
+    HashType shifted = hash >> (64 - bits_used_for_hashing);
+    double ratio = (shifted * 1.0) / (1UL << bits_used_for_hashing);
+    return ratio * scores.size();
+  }
+
+  uint8_t get_input_for_hyper_log_log_register(HashType hash) const {
+    HashType shifted = hash << bits_used_for_hashing;
+    return get_index_of_leftmost_one(shifted);
   }
 
  public:
@@ -52,12 +60,71 @@ class <?=$className?>ConstantState {
         long score;
         it->second.GetResult(score);
         scores[bucket_index] += score;
+        registers[bucket_index] = std::max(registers[bucket_index],
+          get_input_for_hyper_log_log_register(it->first));
         total_score += score;
       }
     }
 
     double GetMinimumScore() const {
       return minimum_score;
+    }
+
+    std::vector<RegisterType> findRegistersWithMinimumScore(ScoreType min) const {
+      std::vector<RegisterType> corresponding_registers;
+      for (int i = 0; i < scores.size(); i++) {
+        bool isBig = scores[i] >= min;
+        if (isBig) {
+          corresponding_registers.push_back(registers[i]);
+        }
+      }
+      return corresponding_registers;
+    }
+
+    uint64_t countRegistersEqualToZero(const std::vector<RegisterType> &registers) const {
+      return count_if(registers.begin(), registers.end(), [](RegisterType rt) { return rt == 0; });
+    }
+
+    double getFactor(uint64_t size) const {
+      auto upper = 1UL << 32;
+      double factor = 1.0 / 30;
+      while (upper < size) {
+        upper <<= 1;
+        factor /= 2;
+      }
+      return factor;
+    }
+
+    double specialSum(std::vector<RegisterType> registers) const {
+      return 1.0 / std::accumulate(registers.begin(), registers.end(), 0,
+        [](double previous, RegisterType rt) {
+          return previous + pow(2, -1 * rt);
+        });
+    }
+
+    uint64_t estimateCardinality(ScoreType min) const {
+      std::vector<RegisterType> registers = findRegistersWithMinimumScore(min);
+      auto size = registers.size();
+      double alpha = .7213 / (1 + 1.079 / size);
+      uint64_t upper = get_upper(size);
+      double factor = getFactor(size);
+      uint64_t raw_estimate = alpha * size * size * specialSum(registers);
+      if (raw_estimate <= 2.5 * size) {
+        auto zeroCount = countRegistersEqualToZero(registers);
+        if (zeroCount > 0) {
+          return size * log(size / zeroCount);
+        } else {
+          return raw_estimate;
+        }
+      } else if (raw_estimate <= factor * upper) {
+        return raw_estimate;
+      } else {
+        return -1 * upper * log(1 - raw_estimate / upper);
+      }
+    }
+
+    void Finalize() {
+      std::printf("cardinality = %ld\n", estimateCardinality(0));
     }
 };
 
@@ -195,7 +262,9 @@ class <?=$className?> {
     return state.IsGroupSurvivor(hash);
   }
 
-  void FinalizeState() {}
+  void FinalizeState() {
+    state.Finalize();
+  }
 };
 
 <?

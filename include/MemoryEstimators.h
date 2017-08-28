@@ -120,4 +120,24 @@ std::vector<U> build_result_iterators(const VectorOfVectors<typename U::elem_typ
   return result;
 }
 
+uint8_t get_index_of_leftmost_one(uint64_t input) {
+  if (input == 0) {
+    return 65;
+  }
+  uint8_t index = 1;
+  while ((input & (1UL << 63)) == 0) {
+    input <<= 1;
+    index++;
+  }
+  return index;
+}
+
+uint64_t get_upper(uint64_t size) {
+  auto upper = 1UL << 32;
+  while (upper < size) {
+    upper <<= 1;
+  }
+  return upper;
+}
+
 #endif // _MEMORY_ESTIMATORS_H
