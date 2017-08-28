@@ -122,7 +122,7 @@ std::vector<U> build_result_iterators(const VectorOfVectors<typename U::elem_typ
   return result;
 }
 
-uint8_t get_index_of_leftmost_one(uint64_t input) {
+inline uint8_t get_index_of_leftmost_one(uint64_t input) {
   if (input == 0) {
     return 65;
   }
@@ -134,7 +134,7 @@ uint8_t get_index_of_leftmost_one(uint64_t input) {
   return index;
 }
 
-uint64_t get_upper(uint64_t size) {
+inline uint64_t get_upper(uint64_t size) {
   auto upper = 1UL << 32;
   while (upper < size) {
     upper <<= 1;
@@ -142,12 +142,12 @@ uint64_t get_upper(uint64_t size) {
   return upper;
 }
 
-double get_correction_factor(uint64_t size) {
+inline double get_correction_factor(uint64_t size) {
   return 1.0 / 30;
 }
 
 template <typename T>
-double calculate_indicator_function(std::vector<T> registers) {
+inline double calculate_indicator_function(std::vector<T> registers) {
   double sum = std::accumulate(registers.begin(), registers.end(), 0.0,
     [](double previous, T current) {
       return previous + pow(2, -1 * current);
