@@ -80,6 +80,23 @@ void test_get_upper() {
   assert(get_upper(pow(10, 8) == (1UL << 32)));
 }
 
+void test_get_correction_factor() {
+  assert(get_correction_factor(1UL << 16) == 1.0 / 30);
+  assert(get_correction_factor(1UL << 32) == 1.0 / 30);
+  assert(get_correction_factor(1UL << 63) == 1.0 / 30);
+}
+
+void test_calculate_indicator_function() {
+  std::vector<int> vector(5);
+  std::fill(vector.begin(), vector.end(), 0);
+  auto sum = calculate_indicator_function(vector);
+  assert(sum == 1.0 / 5);
+
+  std::fill(vector.begin(), vector.end(), 1);
+  sum = calculate_indicator_function(vector);
+  assert(sum == 1.0 / (.5 * 5));
+}
+
 int main() {
   test_get_total_score_on_ints();
   test_count_buckets();
@@ -88,6 +105,8 @@ int main() {
   test_build_result_iterators();
   test_hyper_log_log_estimator();
   test_get_upper();
+  test_get_correction_factor();
+  test_calculate_indicator_function();
   std::cout << "All good!" << std::endl;
   return 0;
 }

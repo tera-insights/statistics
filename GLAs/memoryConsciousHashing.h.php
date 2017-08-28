@@ -81,42 +81,22 @@ class <?=$className?>ConstantState {
       return corresponding_registers;
     }
 
-    uint64_t countRegistersEqualToZero(const std::vector<RegisterType> &registers) const {
-      return count_if(registers.begin(), registers.end(), [](RegisterType rt) { return rt == 0; });
-    }
-
-    double getFactor(uint64_t size) const {
-      auto upper = 1UL << 32;
-      double factor = 1.0 / 30;
-      while (upper < size) {
-        upper <<= 1;
-        factor /= 2;
-      }
-      return factor;
-    }
-
-    double specialSum(std::vector<RegisterType> registers) const {
-      return 1.0 / std::accumulate(registers.begin(), registers.end(), 0,
-        [](double previous, RegisterType rt) {
-          return previous + pow(2, -1 * rt);
-        });
-    }
-
     uint64_t estimateCardinality(ScoreType min) const {
       std::vector<RegisterType> registers = findRegistersWithMinimumScore(min);
       auto size = registers.size();
       double alpha = .7213 / (1 + 1.079 / size);
-      uint64_t upper = get_upper(size);
-      double factor = getFactor(size);
-      uint64_t raw_estimate = alpha * size * size * specialSum(registers);
-      if (raw_estimate <= 2.5 * size) {
-        auto zeroCount = countRegistersEqualToZero(registers);
+      uint64_t raw_estimate = alpha * size * size * calculate_indicator_function(registers);
+      uint64_t small_size_upper_bound = 2.5 * size;
+      uint64_t intermediate_size_upper_bound = get_upper(size) * get_correction_factor(size);
+      if (raw_estimate <= small_size_upper_bound) {
+        auto zeroCount = count_if(registers.begin(), registers.end(),
+          [](RegisterType rt) { return rt == 0; });
         if (zeroCount > 0) {
-          return size * log(size / zeroCount);
+          return size * log(size * 1.0 / zeroCount);
         } else {
           return raw_estimate;
         }
-      } else if (raw_estimate <= factor * upper) {
+      } else if (raw_estimate <= intermediate_size_upper_bound) {
         return raw_estimate;
       } else {
         return -1 * upper * log(1 - raw_estimate / upper);

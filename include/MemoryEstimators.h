@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <iostream>
 #include <list>
+#include <numeric>
+#include <cmath>
 
 template <typename T, std::size_t N>
 using VectorOfArrays = std::vector<std::array<T, N>>;
@@ -138,6 +140,19 @@ uint64_t get_upper(uint64_t size) {
     upper <<= 1;
   }
   return upper;
+}
+
+double get_correction_factor(uint64_t size) {
+  return 1.0 / 30;
+}
+
+template <typename T>
+double calculate_indicator_function(std::vector<T> registers) {
+  double sum = std::accumulate(registers.begin(), registers.end(), 0.0,
+    [](double previous, T current) {
+      return previous + pow(2, -1 * current);
+    });
+  return 1.0 / sum;
 }
 
 #endif // _MEMORY_ESTIMATORS_H
