@@ -1,3 +1,26 @@
+/**
+ * This GLA takes in tuples and combines them into a matrix. 
+ * $inputs must contain a pair of labels for the index and vector (in that 
+ * order). 
+ * $outputs contains the types of the output. 
+ * 
+ * As an example, consider the CSV file whose contents are:
+ * 
+ * 0,1 2
+ * 1,3 4
+ * 3,5 6
+ *
+ * The following code creates a matrix with values:
+ *
+ * 1 2
+ * 3 4
+ * 5 6
+ *
+ * data <- ReadCSV("filename.csv", c(Row = base::int, 
+ *   Data = statistics::vector(size = 2, type = base::int)), header = FALSE)
+ * state <- Collect(data, c(Row, Data), Matrix, size = 3)
+ */
+
 <?
 function Collect(array $t_args, array $inputs, array $outputs)
 {
@@ -41,11 +64,6 @@ function Collect(array $t_args, array $inputs, array $outputs)
     $extra        = ['nrow' => $height, 'ncol' => $length, 'type' => $type];
 ?>
 
-using namespace arma;
-using namespace std;
-
-class <?=$className?>;
-
 class <?=$className?> {
  public:
   // The number of columns in the matrix, equal to the cardinality of the index.
@@ -55,7 +73,7 @@ class <?=$className?> {
   static const constexpr unsigned int kHeight = <?=$height?>;
 
   // The type of the matrix being constructed.
-  using Matrix = Mat<<?=$type?>>::fixed<kHeight, kLength>;
+  using Matrix = arma::Mat<<?=$type?>>::fixed<kHeight, kLength>;
 
  private:
   // The matrix to be filled.

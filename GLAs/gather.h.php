@@ -1,3 +1,7 @@
+/**
+ * This GLA is a combination of Gather from base and Collect from this library.
+ */
+
 <?
 function Gather(array $t_args, array $inputs, array $outputs)
 {
@@ -18,16 +22,13 @@ function Gather(array $t_args, array $inputs, array $outputs)
     $type   = $inputs_['vector']->get('type');
     $tuple  = $inputs_['tuple'];
 
-    $sys_headers  = ['armadillo'];
+    $sys_headers  = ['armadillo', 'cstdio', 'vector'];
     $user_headers = [];
     $lib_headers  = [];
     $libraries    = ['armadillo'];
     $properties   = ['matrix', 'tuples'];
     $extra        = [];
 ?>
-
-using namespace arma;
-using namespace std;
 
 class <?=$className?>;
 
@@ -51,11 +52,11 @@ class <?=$className?> {
  private:
   // The data matrix being constructed item by item. The width of this matrix
   // is increased when necessary as per a dynamic array.
-  Mat<Inner> items;
+  arma::Mat<Inner> items;
 
   // Extra attributes that either cannot fit into the matrix or are not needed
   // in such a format.
-  vector<Tuple> extra;
+  std::vector<Tuple> extra;
 
   // The number of inputs processed by this state.
   long count;
@@ -86,7 +87,7 @@ class <?=$className?> {
   void FinalizeState() {
     // The remaining whitespace is stripped.
     items.resize(kHeight, count);
-    cout << "<?=$className?> processed " << count << " tuples" << endl;
+    std::printf("<?=$className?> processed %d tuples\n", count);
   }
 
   const Mat<Inner>& GetMatrix() const {
